@@ -35,6 +35,8 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 // TODO: Include optional graph?
 // TODO: Add button to test notifications in prefs
 // TODO: Allow to set if the extension is for the user or for monitoring someone else and adjust copies
+// TODO: Add colors based on range and setting to toggle them
+// TODO: Add button to check connection to Nightscout server
 
 const Indicator = GObject.registerClass(
   class Indicator extends PanelMenu.Button {
@@ -43,6 +45,7 @@ const Indicator = GObject.registerClass(
 
       this._settings = settings;
       this._openSettings = openSettings;
+      this._error = false;
 
       this._nightscoutUrl = this._settings.get_string("nightscout-url");
       this._authenticationToken = this._settings.get_string(
@@ -100,7 +103,6 @@ const Indicator = GObject.registerClass(
     _initIndicator() {
       this.box = new St.BoxLayout({
         vertical: false,
-        style_class: "panel-button-box", // TODO: Check if I need this
         reactive: true,
         can_focus: true,
         x_align: Clutter.ActorAlign.START,
@@ -148,6 +150,21 @@ const Indicator = GObject.registerClass(
       this._showElapsedTime || this.buttonElapsedTime.hide();
 
       this.add_child(this.box);
+
+      this.errorBox = new St.BoxLayout({
+        vertical: false,
+        reactive: true,
+        can_focus: true,
+        x_align: Clutter.ActorAlign.START,
+        y_align: Clutter.ActorAlign.CENTER,
+      });
+
+      this.errorButtonText = new St.Label({
+        text: "Error",
+        y_align: Clutter.ActorAlign.CENTER,
+      });
+
+      this.errorBox.add_child(this.errorButtonText);
     }
 
     _initMenu() {
@@ -173,9 +190,8 @@ const Indicator = GObject.registerClass(
 
       this.menu.addMenuItem(openNightscoutSiteItem);
 
-      // TODO: Update this when it changes in settings
       this.debugNightscoutUrl = new PopupMenu.PopupMenuItem(
-        this._nightscoutUrl,
+        this._nightscoutUrl || "Missing url!",
         { reactive: false },
       );
       this.menu.addMenuItem(this.debugNightscoutUrl);
@@ -237,7 +253,8 @@ const Indicator = GObject.registerClass(
     _initListeners() {
       this._settings.connect("changed::nightscout-url", () => {
         this._nightscoutUrl = this._settings.get_string("nightscout-url");
-        this.debugNightscoutUrl.label.text = this._nightscoutUrl;
+        this.debugNightscoutUrl.label.text =
+          this._nightscoutUrl || "Missing url!";
       });
 
       this._settings.connect(
@@ -323,6 +340,11 @@ const Indicator = GObject.registerClass(
 
     async _initThresholds() {
       const data = await this._fetchFromNightscout("/api/v1/status");
+
+      if (!data) {
+        return;
+      }
+
       const thresholds = data.settings.thresholds;
 
       this._thresholdBgHigh = thresholds.bgHigh;
@@ -332,10 +354,10 @@ const Indicator = GObject.registerClass(
     }
 
     async _fetchFromNightscout(url) {
-      let message = Soup.Message.new("GET", this._getUrl(url));
-      message.request_headers.append("Accept", "application/json");
-
       try {
+        let message = Soup.Message.new("GET", this._getUrl(url));
+        message.request_headers.append("Accept", "application/json");
+
         let response = await this.httpSession.send_and_read_async(
           message,
           null,
@@ -349,44 +371,33 @@ const Indicator = GObject.registerClass(
           return;
         }
 
-        if (this._error) {
+        if (this.get_child_at_index(0) == this.errorBox) {
           this.replace_child(this.errorBox, this.box);
         }
+        this._error = false;
 
         const data = JSON.parse(responseBody);
 
         return data;
       } catch (error) {
-        log("NS Error on " + url);
-        log("NS Error: " + error.message);
+        log(`NS Error on ${url}: ${error.message}`);
 
-        this.errorBox = new St.BoxLayout({
-          vertical: false,
-          style_class: "panel-button-box", // TODO: Check if I need this
-          reactive: true,
-          can_focus: true,
-          x_align: Clutter.ActorAlign.START,
-          y_align: Clutter.ActorAlign.CENTER,
-        });
-
-        this.errorButtonText = new St.Label({
-          text: "Error",
-          y_align: Clutter.ActorAlign.CENTER,
-        });
-
-        this.errorBox.add_child(this.errorButtonText);
-
-        this.replace_child(this.box, this.errorBox);
-
-        this._showNotification("Error calling " + url, error.message);
-
+        if (this.get_child_at_index(0) == this.box) {
+          this.replace_child(this.box, this.errorBox);
+        }
         this._error = true;
+
+        this._showNotification(
+          "Error calling " + url,
+          error.message,
+          "open-settings",
+        );
 
         return null;
       }
     }
 
-    _showNotification(title, message) {
+    _showNotification(title, message, action = "open-site") {
       this._initNotificationsSource();
 
       let notification = new MessageTray.Notification({
@@ -396,9 +407,15 @@ const Indicator = GObject.registerClass(
         urgency: this._getNotificationUrgencyLevel(),
       });
 
-      notification.addAction("Open your Nightscout site", () => {
-        this._openNightscoutSite();
-      });
+      if (action == "open-site") {
+        notification.addAction("Open your Nightscout site", () => {
+          this._openNightscoutSite();
+        });
+      } else if (action == "open-settings") {
+        notification.addAction("Open settings", () => {
+          this._openSettings();
+        });
+      }
 
       this._notifSource.addNotification(notification);
     }
@@ -463,8 +480,12 @@ const Indicator = GObject.registerClass(
         "/api/v1/entries.json?count=2",
       );
 
-      let previousEntry = data[0];
-      let entry = data[1];
+      if (!data) {
+        return;
+      }
+
+      let previousEntry = data[1];
+      let entry = data[0];
 
       if (typeof entry === "undefined") {
         this.buttonText.set_text(`No data`);
@@ -503,8 +524,6 @@ const Indicator = GObject.registerClass(
 
       let elapsed = Math.floor((Date.now() - date) / 1000);
       let elapsedText;
-
-      console.log(elapsed, this._staleDataThreshold);
 
       if (elapsed >= this._staleDataThreshold * 60) {
         elapsedText = "(STALE)";
