@@ -1,0 +1,12 @@
+{
+  "uuid": "nightscout@jeroen.wtf",
+  "name": "Nightscout",
+  "version": 1.0,
+  "description": "Integration with Nightscout",
+  "url": "https://github.com/jeroenwtf/gnome-nightscout",
+  "shell-version": [
+    "46",
+    "47"
+  ],
+  "settings-schema": "org.gnome.shell.extensions.nightscout"
+}

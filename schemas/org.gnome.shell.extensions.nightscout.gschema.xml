@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.nightscout" path="/org/gnome/shell/extensions/nightscout/">
+    <key name="nightscout-url" type="s">
+      <default>'https://yournightscoutsite.com'</default>
+      <summary>Nightscout URL</summary>
+      <description>URL of the Nightscout instance that you want to use</description>
+    </key>
+
+    <key name="authentication-token" type="s">
+      <default>''</default>
+      <summary>Authentication token</summary>
+      <description>Sometimes also called access token. Used to access a Nightscout site that has access control</description>
+    </key>
+
+    <key name="refresh-interval" type="i">
+      <default>60</default>
+      <summary>Refresh interval</summary>
+      <description>Amount of seconds between data pulls to the server</description>
+    </key>
+
+    <key name="stale-data-threshold" type="i">
+      <default>15</default>
+      <summary>Stale data threshold</summary>
+      <description>Amount of minutes that must pass since the last reading before the data is considered outdated</description>
+    </key>
+
+    <!-- Toggles to show/hide information -->
+
+    <key name="show-delta" type="b">
+      <default>true</default>
+      <summary>Show delta</summary>
+      <description>The variation between the current and the previous glucose level</description>
+    </key>
+
+    <key name="show-trend-arrows" type="b">
+      <default>true</default>
+      <summary>Show trend arrows</summary>
+      <description>Trend arrows next to your reading</description>
+    </key>
+
+    <key name="show-elapsed-time" type="b">
+      <default>true</default>
+      <summary>Show elapsed time</summary>
+      <description>Toggle to display the time passed since the last reading received</description>
+    </key>
+
+    <!-- Toggles to enable notifications -->
+
+    <key name="notification-out-of-range" type="b">
+      <default>true</default>
+      <summary>Going out of range</summary>
+      <description>Toggle to receive a notification when going out of your target range</description>
+    </key>
+
+    <key name="notification-stale-data" type="b">
+      <default>true</default>
+      <summary>Getting stale data</summary>
+      <description>Toggle to receive a notification when you don't receive updates in a specific period of time</description>
+    </key>
+
+    <key name="notification-rapidly-changes" type="b">
+      <default>true</default>
+      <summary>Rapidly rising or dropping</summary>
+      <description>Toggle to receive a notification when the levels rise or drop fast</description>
+    </key>
+
+    <key name="notification-urgency-level" type="i">
+      <default>2</default>
+      <summary>Urgency level of the notifications</summary>
+      <range min="0" max="3" />
+    </key>
+
+    <!-- Advanced options -->
+
+    <key name="timeout-time" type="i">
+      <default>10</default>
+      <summary>Seconds to timeout</summary>
+      <description>The amount of time in seconds to declare that a call timed out (your server didn't answer)</description>
+    </key>
+  </schema>
+</schemalist>

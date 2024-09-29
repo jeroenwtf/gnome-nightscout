@@ -1,0 +1,22 @@
+.trend-arrows {
+  margin-left: 5px;
+}
+
+.delta {
+  margin-left: 5px;
+}
+
+.elapsed {
+  color: #888888;
+  margin-left: 5px;
+}
+
+.elapsed-stale {
+  color: orange;
+  margin-left: 5px;
+}
+
+.dropdown-icon {
+  width: 1em;
+  height: 1em;
+}
