@@ -1,4 +1,4 @@
-import Gtk from "gi://Gtk?version=4.0";
+import Gtk from "gi://Gtk";
 import Gio from "gi://Gio";
 import Adw from "gi://Adw";
 
@@ -12,12 +12,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     super(metadata);
 
     console.debug(`constructing ${this.metadata.name}`);
-  }
-
-  getPreferencesWidget() {
-    return new Gtk.Label({
-      label: this.metadata.name,
-    });
   }
 
   fillPreferencesWindow(window) {

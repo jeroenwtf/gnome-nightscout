@@ -18,6 +18,7 @@
 
 import GObject from "gi://GObject";
 import GLib from "gi://GLib";
+import Gio from "gi://Gio";
 import St from "gi://St";
 import Clutter from "gi://Clutter";
 import Soup from "gi://Soup";
@@ -29,58 +30,55 @@ import {
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import * as MessageTray from "resource:///org/gnome/shell/ui/messageTray.js";
-import * as Util from "resource:///org/gnome/shell/misc/util.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
-// TODO: Include optional graph?
-// TODO: Add button to test notifications in prefs
-// TODO: Allow to set if the extension is for the user or for monitoring someone else and adjust copies
-// TODO: Add colors based on range and setting to toggle them
-// TODO: Add button to check connection to Nightscout server
-// TODO: Check if we have internet?
+// Settings
+let NIGHTSCOUT_URL = "https://yournightscoutsite.com";
+let AUTHENTICATION_TOKEN = "";
+let REFRESH_INTERVAL = 60;
+let STALE_DATA_THRESHOLD = 15;
+let TIMEOUT_TIME = 10;
+let SHOW_ELAPSED_TIME = true;
+let SHOW_DELTA = true;
+let SHOW_TREND_ARROWS = true;
+let NOTIFICATION_OUT_OF_RANGE = true;
+let NOTIFICATION_STALE_DATA = true;
+let NOTIFICATION_RAPIDLY_CHANGES = true;
+let NOTIFICATION_URGENCY_LEVEL = 2;
+
+// NS thresholds
+let THRESHOLD_BG_HIGH = 260;
+let THRESHOLD_BG_TARGET_TOP = 180;
+let THRESHOLD_BG_TARGET_BOTTOM = 70;
+let THRESHOLD_BG_LOW = 55;
 
 const Indicator = GObject.registerClass(
   class Indicator extends PanelMenu.Button {
-    _init({ settings, openSettings }) {
-      super._init(0.0, _("My Shiny Indicator"));
+    destroy() {
+      this._disconnectSettings();
+      this._disconnectLoop();
 
-      this._settings = settings;
-      this._openSettings = openSettings;
+      super.destroy();
+    }
+
+    _init(extension) {
+      super._init(0.0, _("Nighscout Indicator"));
+
+      this.extension = extension;
+      this.openSettings = extension.openSettings;
+
+      this._settingsChangedId = null;
       this._error = false;
 
-      this._nightscoutUrl = this._settings.get_string("nightscout-url");
-      this._authenticationToken = this._settings.get_string(
-        "authentication-token",
-      );
-      this._refreshInterval = this._settings.get_int("refresh-interval");
-      this._staleDataThreshold = this._settings.get_int("stale-data-threshold");
-      this._timeoutTime = this._settings.get_int("timeout-time");
-
-      this._showElapsedTime = this._settings.get_boolean("show-elapsed-time");
-      this._showDelta = this._settings.get_boolean("show-delta");
-      this._showTrendArrows = this._settings.get_boolean("show-trend-arrows");
-
-      this._notificationOutOfRange = this._settings.get_boolean(
-        "notification-out-of-range",
-      );
-      this._notificationStaleData = this._settings.get_boolean(
-        "notification-stale-data",
-      );
-      this._notificationRapidlyChanges = this._settings.get_boolean(
-        "notification-rapidly-changes",
-      );
-      this._notificationUrgencyLevel = this._settings.get_int(
-        "notification-urgency-level",
-      );
-
       this.httpSession = new Soup.Session();
-      this.httpSession.timeout = this._timeoutTime;
-      this.mainLoop = new GLib.MainLoop(null, false);
+      this.httpSession.timeout = TIMEOUT_TIME;
+      // this.mainLoop = new GLib.MainLoop(null, false);
+
+      this._loadSettings();
+      this._fetchThresholds();
 
       this._initIndicator();
       this._initMenu();
-      this._initListeners();
-      this._initThresholds();
 
       this._checkUpdates();
       this._startLooping();
@@ -90,7 +88,6 @@ const Indicator = GObject.registerClass(
       if (!this._notifSource) {
         this._notifSource = new MessageTray.Source({
           title: "Nightscout",
-          // "icon-name": "edit-paste-symbolic",
         });
 
         this._notifSource.connect("destroy", () => {
@@ -126,7 +123,7 @@ const Indicator = GObject.registerClass(
       });
 
       this.box.add_child(this.buttonDelta);
-      this._showDelta || this.buttonDelta.hide();
+      SHOW_DELTA || this.buttonDelta.hide();
 
       // ------ Toggle: show-trend-arrows
 
@@ -137,7 +134,7 @@ const Indicator = GObject.registerClass(
       });
 
       this.box.add_child(this.buttonTrendArrows);
-      this._showTrendArrows || this.buttonTrendArrows.hide();
+      SHOW_TREND_ARROWS || this.buttonTrendArrows.hide();
 
       // ------ Toggle: show-elapsed-time
 
@@ -148,7 +145,7 @@ const Indicator = GObject.registerClass(
       });
 
       this.box.add_child(this.buttonElapsedTime);
-      this._showElapsedTime || this.buttonElapsedTime.hide();
+      SHOW_ELAPSED_TIME || this.buttonElapsedTime.hide();
 
       this.add_child(this.box);
 
@@ -168,16 +165,24 @@ const Indicator = GObject.registerClass(
       this.errorBox.add_child(this.errorButtonText);
     }
 
+    _updateIndicator() {
+      SHOW_DELTA ? this.buttonDelta.show() : this.buttonDelta.hide();
+      SHOW_TREND_ARROWS
+        ? this.buttonTrendArrows.show()
+        : this.buttonTrendArrows.hide();
+      SHOW_ELAPSED_TIME
+        ? this.buttonElapsedTime.show()
+        : this.buttonElapsedTime.hide();
+    }
+
     _initMenu() {
+      const { settings } = this.extension;
+
       let refreshNowItem = new PopupMenu.PopupMenuItem(_("Refresh now"));
 
       refreshNowItem.connect("activate", () => {
         this._checkUpdates();
       });
-
-      this.menu.addMenuItem(refreshNowItem);
-
-      this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
       // ------ Open your Nightscout site
 
@@ -189,157 +194,119 @@ const Indicator = GObject.registerClass(
         this._openNightscoutSite();
       });
 
-      this.menu.addMenuItem(openNightscoutSiteItem);
-
-      this.debugNightscoutUrl = new PopupMenu.PopupMenuItem(
-        this._nightscoutUrl || "Missing url!",
+      this._debugNightscoutUrlItem = new PopupMenu.PopupMenuItem(
+        NIGHTSCOUT_URL || _("Missing url!"),
         { reactive: false },
       );
-      this.menu.addMenuItem(this.debugNightscoutUrl);
-
-      this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
       // ------ Toggle: show-delta
 
-      let showDeltaItem = new PopupMenu.PopupSwitchMenuItem(
+      this._showDeltaItem = new PopupMenu.PopupSwitchMenuItem(
         _("Show delta"),
-        this._showDelta,
+        SHOW_DELTA,
       );
 
-      showDeltaItem.connect("toggled", (item) => {
-        this._settings.set_boolean("show-delta", item.state);
+      this._showDeltaItem.connect("toggled", (item) => {
+        settings.set_boolean("show-delta", item.state);
       });
-
-      this.menu.addMenuItem(showDeltaItem);
 
       // ------ Toggle: show-trend-arrows
 
-      let showTrendArrowsItem = new PopupMenu.PopupSwitchMenuItem(
+      this._showTrendArrowsItem = new PopupMenu.PopupSwitchMenuItem(
         _("Show trend arrows"),
-        this._showTrendArrows,
+        SHOW_TREND_ARROWS,
       );
 
-      showTrendArrowsItem.connect("toggled", (item) => {
-        this._settings.set_boolean("show-trend-arrows", item.state);
+      this._showTrendArrowsItem.connect("toggled", (item) => {
+        settings.set_boolean("show-trend-arrows", item.state);
       });
-
-      this.menu.addMenuItem(showTrendArrowsItem);
 
       // ------ Toggle: show-elapsed-time
 
-      let showElapsedTimeItem = new PopupMenu.PopupSwitchMenuItem(
+      this._showElapsedTimeItem = new PopupMenu.PopupSwitchMenuItem(
         _("Show elapsed time"),
-        this._showElapsedTime,
+        SHOW_ELAPSED_TIME,
       );
 
-      showElapsedTimeItem.connect("toggled", (item) => {
-        this._settings.set_boolean("show-elapsed-time", item.state);
+      this._showElapsedTimeItem.connect("toggled", (item) => {
+        settings.set_boolean("show-elapsed-time", item.state);
       });
-
-      this.menu.addMenuItem(showElapsedTimeItem);
-
-      this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
 
       // ------ Settings
 
       let settingsItem = new PopupMenu.PopupMenuItem(_("All settings"));
 
       settingsItem.connect("activate", () => {
-        this._openSettings();
+        this.openSettings();
       });
 
+      // ------ Build the menu
+
+      this.menu.addMenuItem(refreshNowItem);
+      this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+      this.menu.addMenuItem(openNightscoutSiteItem);
+      this.menu.addMenuItem(this._debugNightscoutUrlItem);
+      this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+      this.menu.addMenuItem(this._showDeltaItem);
+      this.menu.addMenuItem(this._showTrendArrowsItem);
+      this.menu.addMenuItem(this._showElapsedTimeItem);
+      this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
       this.menu.addMenuItem(settingsItem);
     }
 
-    _initListeners() {
-      this._settings.connect("changed::nightscout-url", () => {
-        this._nightscoutUrl = this._settings.get_string("nightscout-url");
-        this.debugNightscoutUrl.label.text =
-          this._nightscoutUrl || "Missing url!";
-      });
+    _updateMenu() {
+      this._debugNightscoutUrlItem.label.text =
+        NIGHTSCOUT_URL || _("Missing url!");
+      this._showDeltaItem.setToggleState(SHOW_DELTA);
+      this._showTrendArrowsItem.setToggleState(SHOW_TREND_ARROWS);
+      this._showElapsedTimeItem.setToggleState(SHOW_ELAPSED_TIME);
+    }
 
-      this._settings.connect(
-        "changed::authentication-token",
-        () =>
-          (this._authenticationToken = this._settings.get_string(
-            "authentication-token",
-          )),
+    _loadSettings() {
+      this._settingsChangedId = this.extension.settings.connect("changed", () =>
+        this._onSettingsChange(this),
       );
 
-      this._settings.connect(
-        "changed::refresh-interval",
-        () =>
-          (this._refreshInterval = this._settings.get_int("refresh-interval")),
+      this._fetchSettings();
+    }
+
+    _onSettingsChange() {
+      try {
+        this._fetchSettings();
+
+        this._updateMenu();
+        this._updateIndicator();
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    _fetchSettings() {
+      const { settings } = this.extension;
+
+      NIGHTSCOUT_URL = settings.get_string("nightscout-url");
+      AUTHENTICATION_TOKEN = settings.get_string("authentication-token");
+      REFRESH_INTERVAL = settings.get_int("refresh-interval");
+      STALE_DATA_THRESHOLD = settings.get_int("stale-data-threshold");
+      TIMEOUT_TIME = settings.get_int("timeout-time");
+
+      SHOW_ELAPSED_TIME = settings.get_boolean("show-elapsed-time");
+      SHOW_DELTA = settings.get_boolean("show-delta");
+      SHOW_TREND_ARROWS = settings.get_boolean("show-trend-arrows");
+
+      NOTIFICATION_OUT_OF_RANGE = settings.get_boolean(
+        "notification-out-of-range",
       );
-
-      this._settings.connect(
-        "changed::stale-data-threshold",
-        () =>
-          (this._staleDataThreshold = this._settings.get_int(
-            "stale-data-threshold",
-          )),
+      NOTIFICATION_STALE_DATA = settings.get_boolean("notification-stale-data");
+      NOTIFICATION_RAPIDLY_CHANGES = settings.get_boolean(
+        "notification-rapidly-changes",
       );
-
-      const toggleListeners = [
-        {
-          setting: "show-elapsed-time",
-          key: "ElapsedTime",
-        },
-        {
-          setting: "show-delta",
-          key: "Delta",
-        },
-        {
-          setting: "show-trend-arrows",
-          key: "TrendArrows",
-        },
-      ];
-
-      toggleListeners.forEach((listener) => {
-        this._settings.connect(`changed::${listener.setting}`, () => {
-          this[`_show${listener.key}`] = this._settings.get_boolean(
-            listener.setting,
-          );
-          this[`_show${listener.key}`]
-            ? this[`button${listener.key}`].show()
-            : this[`button${listener.key}`].hide();
-        });
-      });
-
-      this._settings.connect(
-        "changed::notification-out-of-range",
-        () =>
-          (this._notificationOutOfRange = this._settings.get_boolean(
-            "notification-out-of-range",
-          )),
-      );
-
-      this._settings.connect(
-        "changed::notification-stale-data",
-        () =>
-          (this._notificationStaleData = this._settings.get_boolean(
-            "notification-stale-data",
-          )),
-      );
-
-      this._settings.connect(
-        "changed::notification-rapidly-changes",
-        () =>
-          (this._notificationRapidlyChanges = this._settings.get_boolean(
-            "notification-rapidly-changes",
-          )),
-      );
-
-      this._settings.connect(
-        "changed::notification-urgency-level",
-        () =>
-          (this._notificationUrgencyLevel = this._settings.get_int(
-            "notification-urgency-level",
-          )),
+      NOTIFICATION_URGENCY_LEVEL = settings.get_int(
+        "notification-urgency-level",
       );
     }
 
-    async _initThresholds() {
+    async _fetchThresholds() {
       const data = await this._fetchFromNightscout("/api/v1/status");
 
       if (!data) {
@@ -348,10 +315,10 @@ const Indicator = GObject.registerClass(
 
       const thresholds = data.settings.thresholds;
 
-      this._thresholdBgHigh = thresholds.bgHigh;
-      this._thresholdBgTargetTop = thresholds.bgTargetTop;
-      this._thresholdBgTargetBottom = thresholds.bgTargetBottom;
-      this._thresholdBgLow = thresholds.bgLow;
+      THRESHOLD_BG_HIGH = thresholds.bgHigh;
+      THRESHOLD_BG_TARGET_TOP = thresholds.bgTargetTop;
+      THRESHOLD_BG_TARGET_BOTTOM = thresholds.bgTargetBottom;
+      THRESHOLD_BG_LOW = thresholds.bgBottom;
     }
 
     async _fetchFromNightscout(url) {
@@ -414,7 +381,7 @@ const Indicator = GObject.registerClass(
         });
       } else if (action == "open-settings") {
         notification.addAction("Open settings", () => {
-          this._openSettings();
+          this.openSettings();
         });
       }
 
@@ -422,21 +389,25 @@ const Indicator = GObject.registerClass(
     }
 
     _startLooping() {
-      GLib.timeout_add_seconds(
+      this._sourceId = GLib.timeout_add_seconds(
         GLib.PRIORITY_DEFAULT,
-        this._refreshInterval,
-        () => this._checkUpdates(),
+        REFRESH_INTERVAL,
+        () => {
+          this._checkUpdates();
+
+          return GLib.SOURCE_CONTINUE;
+        },
       );
     }
 
     _openNightscoutSite() {
       const url = this._getUrl("/");
 
-      Util.spawn(["xdg-open", url]);
+      Gio.AppInfo.launch_default_for_uri(url, null);
     }
 
     _getNotificationUrgencyLevel() {
-      switch (this._notificationUrgencyLevel) {
+      switch (NOTIFICATION_URGENCY_LEVEL) {
         case 0:
           return MessageTray.Urgency.LOW;
 
@@ -451,21 +422,14 @@ const Indicator = GObject.registerClass(
       }
     }
 
-    destroy() {
-      if (this.mainLoop) {
-        this.mainLoop.quit();
-      }
-      super.destroy();
-    }
-
     _getUrl(url) {
-      let fullUrl = this._nightscoutUrl + url;
+      let fullUrl = NIGHTSCOUT_URL + url;
 
-      if (this._authenticationToken) {
+      if (AUTHENTICATION_TOKEN) {
         fullUrl +=
           (fullUrl.includes("?") ? "&" : "?") +
           "token=" +
-          encodeURIComponent(this._authenticationToken);
+          encodeURIComponent(AUTHENTICATION_TOKEN);
       }
 
       let parsedUrl = GLib.Uri.parse(fullUrl, null);
@@ -502,7 +466,7 @@ const Indicator = GObject.registerClass(
       let deltaText = `${delta < 0 ? "" : "+"}${delta}`;
 
       if (
-        this._notificationRapidlyChanges &&
+        NOTIFICATION_RAPIDLY_CHANGES &&
         this._lastDirectionValue !== directionValue
       ) {
         if (directionValue == "DoubleDown" || directionValue == "TripleDown") {
@@ -526,7 +490,7 @@ const Indicator = GObject.registerClass(
       let elapsed = Math.floor((Date.now() - date) / 1000);
       let elapsedText;
 
-      if (elapsed >= this._staleDataThreshold * 60) {
+      if (elapsed >= STALE_DATA_THRESHOLD * 60) {
         elapsedText = "(STALE)";
         this.buttonElapsedTime.style_class = "elapsed-stale";
 
@@ -549,10 +513,10 @@ const Indicator = GObject.registerClass(
         this._lastStaleState = false;
       }
 
-      if (glucoseValue < this._thresholdBgLow) {
+      if (glucoseValue < THRESHOLD_BG_LOW) {
         this.buttonText.style_class = "very-low-glucose";
 
-        this._notificationOutOfRange &&
+        NOTIFICATION_OUT_OF_RANGE &&
           this._lastRange !== "very-low" &&
           this._showNotification(
             "You're VERY low!",
@@ -560,10 +524,10 @@ const Indicator = GObject.registerClass(
           );
 
         this._lastRange = "very-low";
-      } else if (glucoseValue < this._thresholdBgTargetBottom) {
+      } else if (glucoseValue < THRESHOLD_BG_TARGET_BOTTOM) {
         this.buttonText.style_class = "low-glucose";
 
-        this._notificationOutOfRange &&
+        NOTIFICATION_OUT_OF_RANGE &&
           this._lastRange !== "very-low" &&
           this._lastRange !== "low" &&
           this._showNotification(
@@ -572,10 +536,10 @@ const Indicator = GObject.registerClass(
           );
 
         this._lastRange = "low";
-      } else if (glucoseValue > this._thresholdBgHigh) {
+      } else if (glucoseValue > THRESHOLD_BG_HIGH) {
         this.buttonText.style_class = "very-high-glucose";
 
-        this._notificationOutOfRange &&
+        NOTIFICATION_OUT_OF_RANGE &&
           this._lastRange !== "very-high" &&
           this._showNotification(
             "You're too high!",
@@ -583,10 +547,10 @@ const Indicator = GObject.registerClass(
           );
 
         this._lastRange = "very-high";
-      } else if (glucoseValue > this._thresholdBgTargetTop) {
+      } else if (glucoseValue > THRESHOLD_BG_TARGET_TOP) {
         this.buttonText.style_class = "high-glucose";
 
-        this._notificationOutOfRange &&
+        NOTIFICATION_OUT_OF_RANGE &&
           this._lastRange !== "very-high" &&
           this._lastRange !== "high" &&
           this._showNotification(
@@ -630,6 +594,20 @@ const Indicator = GObject.registerClass(
           return "↑↑↑";
         default:
           return "";
+      }
+    }
+
+    _disconnectSettings() {
+      if (!this._settingsChangedId) return;
+
+      this.extension.settings.disconnect(this._settingsChangedId);
+      this._settingsChangedId = null;
+    }
+
+    _disconnectLoop() {
+      if (this._sourceId) {
+        GLib.Source.remove(this._sourceId);
+        this._sourceId = null;
       }
     }
   },
