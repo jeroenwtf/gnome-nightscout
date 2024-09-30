@@ -2,7 +2,7 @@
 
 A GNOME extension to keep an eye on your glucoses levels stored in a Nightscout site.
 
-![menu image](images/screenshot.png){width=200}
+<img src="images/screenshot.png" alt="Menu screenshot of the indicator" width="375" />
 
 
 ## Features
