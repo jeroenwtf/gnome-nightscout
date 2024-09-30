@@ -28,6 +28,29 @@ Download the `nightscout@jeroen.wtf` directory and move it to `~/.local/share/gn
 $ gnome-extensions enable nightscout@jeroen.wtf
 ```
 
+I developed it to cover my needs, which so far doesn't include insulin pump features, for example. Will look into it, but let me know if you need anything and will do my best to add support for them.
+
+
+## FAQ
+
+#### What are the different notification urgency levels?
+
+According to [the documentation](https://gjs.guide/extensions/topics/notifications.html), the urgency level controls how and when the notifications are presented to the user. Copypasting from the documentation:
+
+> ##### Low
+> These notifications will be shown in the tray, but will not popup on the screen or be expanded.
+>
+> #### Normal
+> These notifications will be shown in the tray, and will popup on the screen unless the policy forbids it.
+>
+> #### High
+> These notifications will be shown in the tray, and will popup on the screen unless the policy forbids it.
+>
+> #### Critical
+> These notifications will always be shown, with the banner expanded, and must be acknowledged by the user before they will be dismissed.
+
+I would suggest you to try them and see what works better for you. In the future I want to add better management for the notifications, like snoozing them and so on.
+
 
 ## Troubleshooting
 
@@ -39,3 +62,5 @@ As of today I just created the extension. For sure there are bugs and improvemen
 - The people behind the [Nightscout](https://nightscout.github.io/) project, because of their work and effort to make our lives easier.
 - [Fernando Pradas](https://github.com/fnandot) for [his GNOME extension](https://github.com/fnandot/gnome-shell-extension-nightscout) that served as inspiration and some code snippets.
 - The [Clipboard indicator](https://github.com/Tudmotu/gnome-shell-extension-clipboard-indicator/) and [tailwind-status](https://github.com/maxgallup/tailscale-status) extensions for additional learning.
+
+
