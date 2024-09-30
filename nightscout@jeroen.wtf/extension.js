@@ -72,7 +72,6 @@ const Indicator = GObject.registerClass(
 
       this.httpSession = new Soup.Session();
       this.httpSession.timeout = TIMEOUT_TIME;
-      // this.mainLoop = new GLib.MainLoop(null, false);
 
       this._loadSettings();
       this._fetchThresholds();
