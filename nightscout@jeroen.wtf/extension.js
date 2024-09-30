@@ -37,6 +37,7 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 // TODO: Allow to set if the extension is for the user or for monitoring someone else and adjust copies
 // TODO: Add colors based on range and setting to toggle them
 // TODO: Add button to check connection to Nightscout server
+// TODO: Check if we have internet?
 
 const Indicator = GObject.registerClass(
   class Indicator extends PanelMenu.Button {
