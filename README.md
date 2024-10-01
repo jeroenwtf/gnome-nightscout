@@ -1,5 +1,7 @@
 # Nightscout indicator
 
+<a href="https://extensions.gnome.org/extension/7388/nightscout/" target="_blank"><img src="images/get-it-on-ego.png" alt="Gnome Extensions badge" width="180" /></a>
+
 A GNOME extension to keep an eye on your glucoses levels stored in a Nightscout site.
 
 <img src="images/screenshot.png" alt="Menu screenshot of the indicator" width="375" />
