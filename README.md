@@ -40,6 +40,7 @@ I developed it to cover my needs, which so far doesn't include insulin pump feat
 - Add colors based on range and setting to toggle them.
 - Add button to check connection to Nightscout server.
 - Check if we have internet or wait for it when starting.
+- Remove notifications that are no longer valid.
 
 
 ## FAQ
