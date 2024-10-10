@@ -73,6 +73,6 @@ As of today I just created the extension. For sure there are bugs and improvemen
 
 - The people behind the [Nightscout](https://nightscout.github.io/) project, because of their work and effort to make our lives easier.
 - [Fernando Pradas](https://github.com/fnandot) for [his GNOME extension](https://github.com/fnandot/gnome-shell-extension-nightscout) that served as inspiration and some code snippets.
-- The [Clipboard indicator](https://github.com/Tudmotu/gnome-shell-extension-clipboard-indicator/) and [tailwind-status](https://github.com/maxgallup/tailscale-status) extensions for additional learning.
+- The [Clipboard indicator](https://github.com/Tudmotu/gnome-shell-extension-clipboard-indicator/) and [tailscale-status](https://github.com/maxgallup/tailscale-status) extensions for additional learning.
 
 
