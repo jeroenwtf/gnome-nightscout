@@ -559,8 +559,6 @@ const Indicator = GObject.registerClass(
 
         this._lastRange = "high";
       } else {
-        this.buttonText.style_class = "fresh-data";
-
         this._lastRange = "in-range";
       }
 

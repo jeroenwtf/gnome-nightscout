@@ -20,3 +20,28 @@
   width: 1em;
   height: 1em;
 }
+
+.very-low-glucose,
+.low-glucose,
+.very-high-glucose,
+.high-glucose {
+  color: black;
+  border-radius: 4px;
+  padding: 0 4px;
+}
+
+.very-low-glucose {
+  background-color: fuchsia;
+}
+
+.low-glucose {
+  background-color: red;
+}
+
+.very-high-glucose {
+  background-color: orange;
+}
+
+.high-glucose {
+  background-color: gold;
+}
