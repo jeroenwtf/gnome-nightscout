@@ -34,21 +34,21 @@ $ gnome-extensions enable nightscout@jeroen.wtf
 
 I developed it to cover my needs, which so far doesn't include insulin pump features, for example. Will look into it, but let me know if you need anything and will do my best to add support for them. So far, I have this list of things in mind:
 
-- [ ] Include optional graph?
+- [ ] Remove notifications that are no longer valid.
+- [ ] Add translations.
 - [ ] Allow to set if the extension is for the user or for monitoring someone else and adjust copies.
 - [x] Add colors based on range and setting to toggle them.
 - [x] Add button to check connection to Nightscout server.
 - [x] Check if we have internet or wait for it when starting.
-- [ ] Remove notifications that are no longer valid.
 
 
 ## FAQ
 
-#### What are the different notification urgency levels?
+### What are the different notification urgency levels?
 
 According to [the documentation](https://gjs.guide/extensions/topics/notifications.html), the urgency level controls how and when the notifications are presented to the user. Copypasting from the documentation:
 
-> ##### Low
+> #### Low
 > These notifications will be shown in the tray, but will not popup on the screen or be expanded.
 >
 > #### Normal
