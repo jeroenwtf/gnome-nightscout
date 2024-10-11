@@ -321,6 +321,11 @@ const Indicator = GObject.registerClass(
     }
 
     async _fetchFromNightscout(url) {
+      if (!this._hasInternetConnection()) {
+        this._showErrorBox("Waiting for network...");
+        return;
+      }
+
       try {
         let message = Soup.Message.new("GET", this._getUrl(url));
         message.request_headers.append("Accept", "application/json");
@@ -342,10 +347,7 @@ const Indicator = GObject.registerClass(
           throw new Error("Something went wrong.");
         }
 
-        if (this.get_child_at_index(0) == this.errorBox) {
-          this.replace_child(this.errorBox, this.box);
-        }
-        this._error = false;
+        this._hideErrorBox();
 
         const data = JSON.parse(responseBody);
 
@@ -353,10 +355,7 @@ const Indicator = GObject.registerClass(
       } catch (error) {
         log(`NS Error on ${url}: ${error.message}`);
 
-        if (this.get_child_at_index(0) == this.box) {
-          this.replace_child(this.box, this.errorBox);
-        }
-        this._error = true;
+        this._showErrorBox();
 
         this._showNotification(
           "Error calling " + url,
@@ -366,6 +365,22 @@ const Indicator = GObject.registerClass(
 
         return null;
       }
+    }
+
+    _showErrorBox(message = "Error") {
+      this.errorButtonText.set_text(message);
+
+      if (this.get_child_at_index(0) == this.box) {
+        this.replace_child(this.box, this.errorBox);
+      }
+      this._error = true;
+    }
+
+    _hideErrorBox() {
+      if (this.get_child_at_index(0) == this.errorBox) {
+        this.replace_child(this.errorBox, this.box);
+      }
+      this._error = false;
     }
 
     _showNotification(title, message, action = "open-site") {
@@ -596,6 +611,11 @@ const Indicator = GObject.registerClass(
         default:
           return "";
       }
+    }
+
+    _hasInternetConnection() {
+      let networkMonitor = Gio.NetworkMonitor.get_default();
+      return networkMonitor.get_network_available();
     }
 
     _disconnectSettings() {
