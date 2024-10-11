@@ -1,6 +1,7 @@
 import Gtk from "gi://Gtk";
 import Gio from "gi://Gio";
 import Adw from "gi://Adw";
+import Soup from "gi://Soup";
 
 import {
   ExtensionPreferences,
@@ -51,6 +52,21 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       "text",
       Gio.SettingsBindFlags.DEFAULT,
     );
+
+    const statusRow = new Adw.ActionRow({
+      title: _("Click to check the server status"),
+    });
+    instanceGroup.add(statusRow);
+
+    const statusButton = new Gtk.Button({
+      label: _("Check status"),
+      valign: Gtk.Align.CENTER,
+    });
+    statusRow.add_suffix(statusButton);
+
+    statusButton.connect("clicked", () => {
+      this._checkServerStatus(window._settings, statusRow);
+    });
 
     const generalGroup = new Adw.PreferencesGroup({
       title: _("General settings"),
@@ -221,5 +237,50 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       "value",
       Gio.SettingsBindFlags.DEFAULT,
     );
+  }
+
+  _checkServerStatus(settings, statusLabel) {
+    const nightscoutUrl = settings.get_string("nightscout-url");
+    const authToken = settings.get_string("authentication-token");
+
+    if (!nightscoutUrl) {
+      statusLabel.set_title(_("Error: Nightscout URL not set"));
+      return;
+    }
+
+    statusLabel.set_title(_("Checking..."));
+
+    const session = new Soup.Session();
+    const message = Soup.Message.new("GET", `${nightscoutUrl}/api/v1/status`);
+    message.request_headers.append("Accept", "application/json");
+
+    if (authToken) {
+      message.request_headers.append("API-SECRET", authToken);
+    }
+
+    try {
+      session.send_and_read_async(message, null, null, (session, result) => {
+        if (message.status_code == Soup.Status.UNAUTHORIZED) {
+          statusLabel.set_title(
+            _(`Error: Unauthorized. Check your authentication token.`),
+          );
+          throw new Error(`HTTP error! status: ${message.status_code}`);
+        }
+
+        if (message.status_code !== Soup.Status.OK) {
+          statusLabel.set_title(_(`Error: Check if the url is correct.`));
+          throw new Error(`HTTP error! status: ${message.status_code}`);
+        }
+
+        const bytes = session.send_and_read_finish(result);
+        const decoder = new TextDecoder("utf-8");
+        const response = JSON.parse(decoder.decode(bytes.get_data()));
+        const version = response.version;
+        statusLabel.set_title(_(`Success! Version: ${version}`));
+      });
+    } catch (error) {
+      console.log(error);
+      statusLabel.set_title(_(`Error: ${error.message}`));
+    }
   }
 }

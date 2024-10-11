@@ -34,13 +34,13 @@ $ gnome-extensions enable nightscout@jeroen.wtf
 
 I developed it to cover my needs, which so far doesn't include insulin pump features, for example. Will look into it, but let me know if you need anything and will do my best to add support for them. So far, I have this list of things in mind:
 
-- Include optional graph?
-- Add button to preview notifications in prefs?
-- Allow to set if the extension is for the user or for monitoring someone else and adjust copies.
-- Add colors based on range and setting to toggle them.
-- Add button to check connection to Nightscout server.
-- Check if we have internet or wait for it when starting.
-- Remove notifications that are no longer valid.
+- [ ] Include optional graph?
+- [ ] Add button to preview notifications in prefs?
+- [ ] Allow to set if the extension is for the user or for monitoring someone else and adjust copies.
+- [x] Add colors based on range and setting to toggle them.
+- [x] Add button to check connection to Nightscout server.
+- [ ] Check if we have internet or wait for it when starting.
+- [ ] Remove notifications that are no longer valid.
 
 
 ## FAQ

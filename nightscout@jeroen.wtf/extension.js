@@ -334,8 +334,12 @@ const Indicator = GObject.registerClass(
         let responseBody = String.fromCharCode.apply(null, response.get_data());
         let statusCode = message.get_status();
 
+        if (statusCode == 401) {
+          throw new Error("Unauthorized: check your authentication token.");
+        }
+
         if (statusCode !== 200) {
-          return;
+          throw new Error("Something went wrong.");
         }
 
         if (this.get_child_at_index(0) == this.errorBox) {
