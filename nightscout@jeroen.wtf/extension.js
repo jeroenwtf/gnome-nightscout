@@ -578,6 +578,7 @@ const Indicator = GObject.registerClass(
 
         this._lastRange = "high";
       } else {
+        this.buttonText.style_class = "in-range";
         this._lastRange = "in-range";
       }
 
