@@ -12,8 +12,11 @@
 }
 
 .elapsed-stale {
-  color: orange;
   margin-left: 5px;
+  color: white;
+  background-color: dimgray;
+  border-radius: 4px;
+  padding: 0 4px;
 }
 
 .dropdown-icon {

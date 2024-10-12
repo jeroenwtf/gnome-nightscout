@@ -69,11 +69,13 @@ const Indicator = GObject.registerClass(
 
       this._settingsChangedId = null;
       this._error = false;
+      this._notificationStorage = [];
+
+      this._loadSettings();
 
       this.httpSession = new Soup.Session();
       this.httpSession.timeout = TIMEOUT_TIME;
 
-      this._loadSettings();
       this._fetchThresholds();
 
       this._initIndicator();
@@ -357,11 +359,11 @@ const Indicator = GObject.registerClass(
 
         this._showErrorBox();
 
-        this._showNotification(
-          "Error calling " + url,
-          error.message,
-          "open-settings",
-        );
+        this._showNotification({
+          title: "Error calling " + url,
+          message: error.message,
+          action: "open-settings",
+        });
 
         return null;
       }
@@ -383,8 +385,12 @@ const Indicator = GObject.registerClass(
       this._error = false;
     }
 
-    _showNotification(title, message, action = "open-site") {
+    _showNotification({ title, message, action, group }) {
       this._initNotificationsSource();
+
+      if (group) {
+        this._destroyNotification(group);
+      }
 
       let notification = new MessageTray.Notification({
         source: this._notifSource,
@@ -393,17 +399,30 @@ const Indicator = GObject.registerClass(
         urgency: this._getNotificationUrgencyLevel(),
       });
 
-      if (action == "open-site") {
-        notification.addAction("Open your Nightscout site", () => {
-          this._openNightscoutSite();
-        });
-      } else if (action == "open-settings") {
+      if (action === "open-settings") {
         notification.addAction("Open settings", () => {
           this.openSettings();
         });
+      } else {
+        notification.addAction("Open your Nightscout site", () => {
+          this._openNightscoutSite();
+        });
+      }
+
+      if (group) {
+        this._notificationStorage[group] = notification;
       }
 
       this._notifSource.addNotification(notification);
+    }
+
+    _destroyNotification(group) {
+      const notification = this._notificationStorage[group];
+
+      if (notification) {
+        notification.destroy();
+        this._notificationStorage[group] = null;
+      }
     }
 
     _startLooping() {
@@ -488,18 +507,20 @@ const Indicator = GObject.registerClass(
         this._lastDirectionValue !== directionValue
       ) {
         if (directionValue == "DoubleDown" || directionValue == "TripleDown") {
-          this._showNotification(
-            "Rapidly lowering!",
-            `Glucose level is going down quick.`,
-          );
+          this._showNotification({
+            title: "Rapidly lowering!",
+            message: `Glucose level is going down quick.`,
+            group: "rapidly-changes",
+          });
         } else if (
           directionValue == "DoubleUp" ||
           directionValue == "TripleUp"
         ) {
-          this._showNotification(
-            "Rapidly rising!",
-            `Glucose level is going up quick.`,
-          );
+          this._showNotification({
+            title: "Rapidly rising!",
+            message: `Glucose level is going up quick.`,
+            group: "rapidly-changes",
+          });
         }
 
         this._lastDirectionValue = directionValue;
@@ -509,17 +530,18 @@ const Indicator = GObject.registerClass(
       let elapsedText;
 
       if (elapsed >= STALE_DATA_THRESHOLD * 60) {
-        elapsedText = "(STALE)";
+        elapsedText = "STALE";
         this.buttonElapsedTime.style_class = "elapsed-stale";
 
-        if (!this._lastStaleState) {
-          this._showNotification(
-            "Data is stale",
-            `Last reading is from ${Math.floor(elapsed / 60)} minutes ago.`,
-          );
-        }
+        if (NOTIFICATION_STALE_DATA && !this._lastStaleState) {
+          this._showNotification({
+            title: "Data is stale",
+            message: `Last reading is from ${Math.floor(elapsed / 60)} minutes ago.`,
+            group: "stale-data",
+          });
 
-        this._lastStaleState = true;
+          this._lastStaleState = true;
+        }
       } else {
         if (elapsed >= 60) {
           elapsedText = `(${Math.floor(elapsed / 60)} min ago)`;
@@ -528,7 +550,11 @@ const Indicator = GObject.registerClass(
         }
         this.buttonElapsedTime.style_class = "elapsed";
 
-        this._lastStaleState = false;
+        if (NOTIFICATION_STALE_DATA) {
+          this._destroyNotification("stale-data");
+
+          this._lastStaleState = false;
+        }
       }
 
       if (glucoseValue < THRESHOLD_BG_LOW) {
@@ -536,10 +562,11 @@ const Indicator = GObject.registerClass(
 
         NOTIFICATION_OUT_OF_RANGE &&
           this._lastRange !== "very-low" &&
-          this._showNotification(
-            "You're VERY low!",
-            `Glucose level is ${glucoseValue}. DO SOMETHING!`,
-          );
+          this._showNotification({
+            title: "You're VERY low!",
+            message: `Glucose level is ${glucoseValue}. DO SOMETHING!`,
+            group: "out-of-range",
+          });
 
         this._lastRange = "very-low";
       } else if (glucoseValue < THRESHOLD_BG_TARGET_BOTTOM) {
@@ -548,10 +575,11 @@ const Indicator = GObject.registerClass(
         NOTIFICATION_OUT_OF_RANGE &&
           this._lastRange !== "very-low" &&
           this._lastRange !== "low" &&
-          this._showNotification(
-            "You're too low!",
-            `Glucose level is ${glucoseValue}. It's below range.`,
-          );
+          this._showNotification({
+            title: "You're too low!",
+            message: `Glucose level is ${glucoseValue}. It's below range.`,
+            group: "out-of-range",
+          });
 
         this._lastRange = "low";
       } else if (glucoseValue > THRESHOLD_BG_HIGH) {
@@ -559,10 +587,11 @@ const Indicator = GObject.registerClass(
 
         NOTIFICATION_OUT_OF_RANGE &&
           this._lastRange !== "very-high" &&
-          this._showNotification(
-            "You're too high!",
-            `Glucose level is ${glucoseValue}. Did you forget your insulin?`,
-          );
+          this._showNotification({
+            title: "You're too high!",
+            message: `Glucose level is ${glucoseValue}. Did you forget your insulin?`,
+            group: "out-of-range",
+          });
 
         this._lastRange = "very-high";
       } else if (glucoseValue > THRESHOLD_BG_TARGET_TOP) {
@@ -571,15 +600,18 @@ const Indicator = GObject.registerClass(
         NOTIFICATION_OUT_OF_RANGE &&
           this._lastRange !== "very-high" &&
           this._lastRange !== "high" &&
-          this._showNotification(
-            "You're high!",
-            `Glucose level is ${glucoseValue}. It's above range.`,
-          );
+          this._showNotification({
+            title: "You're high!",
+            message: `Glucose level is ${glucoseValue}. It's above range.`,
+            group: "out-of-range",
+          });
 
         this._lastRange = "high";
       } else {
         this.buttonText.style_class = "in-range";
         this._lastRange = "in-range";
+
+        this._destroyNotification("out-of-range");
       }
 
       this.buttonText.set_text(glucoseValue.toString());
