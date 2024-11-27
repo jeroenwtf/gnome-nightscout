@@ -140,16 +140,30 @@ const Indicator = GObject.registerClass(
 
       // ------ Toggle: show-elapsed-time
 
-      this.buttonElapsedTime = new St.Label({
-        text: "",
-        style_class: "elapsed",
+      this.elapsedBox = new St.BoxLayout({
+        vertical: false,
+        x_align: Clutter.ActorAlign.START,
         y_align: Clutter.ActorAlign.CENTER,
+        style_class: "elapsed",
       });
 
-      this.box.add_child(this.buttonElapsedTime);
-      SHOW_ELAPSED_TIME || this.buttonElapsedTime.hide();
+      this.box.add_child(this.elapsedBox);
+      SHOW_ELAPSED_TIME || this.elapsedBox.hide();
+
+      this.buttonElapsedTime = new St.Label({
+        text: "",
+      });
+
+      this.elapsedBox.add_child(this.buttonElapsedTime);
+
+      this.buttonStaleElapsedTime = new St.Label({
+        text: "",
+      });
+
+      this.elapsedBox.add_child(this.buttonStaleElapsedTime);
 
       this.add_child(this.box);
+      SHOW_STALE_ELAPSED_TIME || this.buttonStaleElapsedTime.hide();
 
       this.errorBox = new St.BoxLayout({
         vertical: false,
@@ -169,12 +183,16 @@ const Indicator = GObject.registerClass(
 
     _updateIndicator() {
       SHOW_DELTA ? this.buttonDelta.show() : this.buttonDelta.hide();
+
       SHOW_TREND_ARROWS
         ? this.buttonTrendArrows.show()
         : this.buttonTrendArrows.hide();
-      SHOW_ELAPSED_TIME
-        ? this.buttonElapsedTime.show()
-        : this.buttonElapsedTime.hide();
+
+      SHOW_ELAPSED_TIME ? this.elapsedBox.show() : this.elapsedBox.hide();
+
+      SHOW_STALE_ELAPSED_TIME
+        ? this.buttonStaleElapsedTime.show()
+        : this.buttonStaleElapsedTime.hide();
     }
 
     _initMenu() {
@@ -274,6 +292,7 @@ const Indicator = GObject.registerClass(
       this._showDeltaItem.setToggleState(SHOW_DELTA);
       this._showTrendArrowsItem.setToggleState(SHOW_TREND_ARROWS);
       this._showElapsedTimeItem.setToggleState(SHOW_ELAPSED_TIME);
+      this._showStaleElapsedTimeItem.setToggleState(SHOW_STALE_ELAPSED_TIME);
     }
 
     _loadSettings() {
@@ -541,24 +560,23 @@ const Indicator = GObject.registerClass(
       }
 
       let elapsed = Math.floor((Date.now() - date) / 1000);
+      elapsed = 2600;
       let elapsedText;
+      let staleElapsedText;
 
       if (elapsed >= STALE_DATA_THRESHOLD * 60) {
         elapsedText = "STALE";
+        staleElapsedText = " for ";
 
-        if (SHOW_STALE_ELAPSED_TIME) {
-          elapsedText += " for ";
-
-          if (elapsed >= 86400) {
-            elapsedText += ">day";
-          } else if (elapsed >= 3600) {
-            elapsedText += `${Math.floor(elapsed / 3600)}h`;
-          } else {
-            elapsedText += `${Math.floor(elapsed / 60)}m`;
-          }
+        if (elapsed >= 86400) {
+          staleElapsedText += ">day";
+        } else if (elapsed >= 3600) {
+          staleElapsedText += `${Math.floor(elapsed / 3600)}h`;
+        } else {
+          staleElapsedText += `${Math.floor(elapsed / 60)}m`;
         }
 
-        this.buttonElapsedTime.style_class = "elapsed-stale";
+        this.elapsedBox.style_class = "elapsed-stale";
 
         if (NOTIFICATION_STALE_DATA && !this._lastStaleState) {
           this._showNotification({
@@ -575,7 +593,7 @@ const Indicator = GObject.registerClass(
         } else {
           elapsedText = "(<1 min ago)";
         }
-        this.buttonElapsedTime.style_class = "elapsed";
+        this.elapsedBox.style_class = "elapsed";
 
         if (NOTIFICATION_STALE_DATA) {
           this._destroyNotification("stale-data");
@@ -646,6 +664,7 @@ const Indicator = GObject.registerClass(
       this.buttonDelta.set_text(deltaText);
       this.buttonTrendArrows.set_text(arrow);
       this.buttonElapsedTime.set_text(elapsedText);
+      this.buttonStaleElapsedTime.set_text(staleElapsedText);
     }
 
     _fromNameToArrowCharacter(directionValue) {
