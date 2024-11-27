@@ -39,6 +39,7 @@ let REFRESH_INTERVAL = 60;
 let STALE_DATA_THRESHOLD = 15;
 let TIMEOUT_TIME = 10;
 let SHOW_ELAPSED_TIME = true;
+let SHOW_STALE_ELAPSED_TIME = true;
 let SHOW_DELTA = true;
 let SHOW_TREND_ARROWS = true;
 let NOTIFICATION_OUT_OF_RANGE = true;
@@ -139,16 +140,30 @@ const Indicator = GObject.registerClass(
 
       // ------ Toggle: show-elapsed-time
 
-      this.buttonElapsedTime = new St.Label({
-        text: "",
-        style_class: "elapsed",
+      this.elapsedBox = new St.BoxLayout({
+        vertical: false,
+        x_align: Clutter.ActorAlign.START,
         y_align: Clutter.ActorAlign.CENTER,
+        style_class: "elapsed",
       });
 
-      this.box.add_child(this.buttonElapsedTime);
-      SHOW_ELAPSED_TIME || this.buttonElapsedTime.hide();
+      this.box.add_child(this.elapsedBox);
+      SHOW_ELAPSED_TIME || this.elapsedBox.hide();
+
+      this.buttonElapsedTime = new St.Label({
+        text: "",
+      });
+
+      this.elapsedBox.add_child(this.buttonElapsedTime);
+
+      this.buttonStaleElapsedTime = new St.Label({
+        text: "",
+      });
+
+      this.elapsedBox.add_child(this.buttonStaleElapsedTime);
 
       this.add_child(this.box);
+      SHOW_STALE_ELAPSED_TIME || this.buttonStaleElapsedTime.hide();
 
       this.errorBox = new St.BoxLayout({
         vertical: false,
@@ -168,12 +183,16 @@ const Indicator = GObject.registerClass(
 
     _updateIndicator() {
       SHOW_DELTA ? this.buttonDelta.show() : this.buttonDelta.hide();
+
       SHOW_TREND_ARROWS
         ? this.buttonTrendArrows.show()
         : this.buttonTrendArrows.hide();
-      SHOW_ELAPSED_TIME
-        ? this.buttonElapsedTime.show()
-        : this.buttonElapsedTime.hide();
+
+      SHOW_ELAPSED_TIME ? this.elapsedBox.show() : this.elapsedBox.hide();
+
+      SHOW_STALE_ELAPSED_TIME
+        ? this.buttonStaleElapsedTime.show()
+        : this.buttonStaleElapsedTime.hide();
     }
 
     _initMenu() {
@@ -233,6 +252,17 @@ const Indicator = GObject.registerClass(
         settings.set_boolean("show-elapsed-time", item.state);
       });
 
+      // ------ Toggle: show-stale-elapsed-time
+
+      this._showStaleElapsedTimeItem = new PopupMenu.PopupSwitchMenuItem(
+        _("Show stale elapsed time"),
+        SHOW_STALE_ELAPSED_TIME,
+      );
+
+      this._showStaleElapsedTimeItem.connect("toggled", (item) => {
+        settings.set_boolean("show-stale-elapsed-time", item.state);
+      });
+
       // ------ Settings
 
       let settingsItem = new PopupMenu.PopupMenuItem(_("All settings"));
@@ -251,6 +281,7 @@ const Indicator = GObject.registerClass(
       this.menu.addMenuItem(this._showDeltaItem);
       this.menu.addMenuItem(this._showTrendArrowsItem);
       this.menu.addMenuItem(this._showElapsedTimeItem);
+      this.menu.addMenuItem(this._showStaleElapsedTimeItem);
       this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
       this.menu.addMenuItem(settingsItem);
     }
@@ -261,6 +292,7 @@ const Indicator = GObject.registerClass(
       this._showDeltaItem.setToggleState(SHOW_DELTA);
       this._showTrendArrowsItem.setToggleState(SHOW_TREND_ARROWS);
       this._showElapsedTimeItem.setToggleState(SHOW_ELAPSED_TIME);
+      this._showStaleElapsedTimeItem.setToggleState(SHOW_STALE_ELAPSED_TIME);
     }
 
     _loadSettings() {
@@ -292,6 +324,7 @@ const Indicator = GObject.registerClass(
       TIMEOUT_TIME = settings.get_int("timeout-time");
 
       SHOW_ELAPSED_TIME = settings.get_boolean("show-elapsed-time");
+      SHOW_STALE_ELAPSED_TIME = settings.get_boolean("show-stale-elapsed-time");
       SHOW_DELTA = settings.get_boolean("show-delta");
       SHOW_TREND_ARROWS = settings.get_boolean("show-trend-arrows");
 
@@ -528,10 +561,21 @@ const Indicator = GObject.registerClass(
 
       let elapsed = Math.floor((Date.now() - date) / 1000);
       let elapsedText;
+      let staleElapsedText;
 
       if (elapsed >= STALE_DATA_THRESHOLD * 60) {
         elapsedText = "STALE";
-        this.buttonElapsedTime.style_class = "elapsed-stale";
+        staleElapsedText = " for ";
+
+        if (elapsed >= 86400) {
+          staleElapsedText += ">day";
+        } else if (elapsed >= 3600) {
+          staleElapsedText += `${Math.floor(elapsed / 3600)}h`;
+        } else {
+          staleElapsedText += `${Math.floor(elapsed / 60)}m`;
+        }
+
+        this.elapsedBox.style_class = "elapsed-stale";
 
         if (NOTIFICATION_STALE_DATA && !this._lastStaleState) {
           this._showNotification({
@@ -548,7 +592,7 @@ const Indicator = GObject.registerClass(
         } else {
           elapsedText = "(<1 min ago)";
         }
-        this.buttonElapsedTime.style_class = "elapsed";
+        this.elapsedBox.style_class = "elapsed";
 
         if (NOTIFICATION_STALE_DATA) {
           this._destroyNotification("stale-data");
@@ -619,6 +663,7 @@ const Indicator = GObject.registerClass(
       this.buttonDelta.set_text(deltaText);
       this.buttonTrendArrows.set_text(arrow);
       this.buttonElapsedTime.set_text(elapsedText);
+      this.buttonStaleElapsedTime.set_text(staleElapsedText);
     }
 
     _fromNameToArrowCharacter(directionValue) {

@@ -45,6 +45,12 @@
       <description>Toggle to display the time passed since the last reading received</description>
     </key>
 
+    <key name="show-stale-elapsed-time" type="b">
+      <default>true</default>
+      <summary>Show stale elapsed time</summary>
+      <description>Toggle to display the time passed since the last reading received when it's stale</description>
+    </key>
+
     <!-- Toggles to enable notifications -->
 
     <key name="notification-out-of-range" type="b">
