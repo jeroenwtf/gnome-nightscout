@@ -592,6 +592,7 @@ const Indicator = GObject.registerClass(
         } else {
           elapsedText = "(<1 min ago)";
         }
+        staleElapsedText = "";
         this.elapsedBox.style_class = "elapsed";
 
         if (NOTIFICATION_STALE_DATA) {
