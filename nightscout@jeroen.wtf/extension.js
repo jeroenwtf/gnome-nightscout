@@ -560,7 +560,6 @@ const Indicator = GObject.registerClass(
       }
 
       let elapsed = Math.floor((Date.now() - date) / 1000);
-      elapsed = 2600;
       let elapsedText;
       let staleElapsedText;
 
