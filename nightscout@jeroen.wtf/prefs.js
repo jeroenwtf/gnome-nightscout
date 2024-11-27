@@ -153,6 +153,19 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       Gio.SettingsBindFlags.DEFAULT,
     );
 
+    const showStaleElapsedTimeRow = new Adw.SwitchRow({
+      title: _("Show stale elapsed time"),
+      subtitle: _("Also show elapsed time when stale"),
+    });
+    toggleInformationGroup.add(showStaleElapsedTimeRow);
+
+    window._settings.bind(
+      "show-stale-elapsed-time",
+      showStaleElapsedTimeRow,
+      "active",
+      Gio.SettingsBindFlags.DEFAULT,
+    );
+
     const notificationsGroup = new Adw.PreferencesGroup({
       title: _("Notifications"),
     });

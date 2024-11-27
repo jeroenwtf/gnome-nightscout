@@ -39,6 +39,7 @@ let REFRESH_INTERVAL = 60;
 let STALE_DATA_THRESHOLD = 15;
 let TIMEOUT_TIME = 10;
 let SHOW_ELAPSED_TIME = true;
+let SHOW_STALE_ELAPSED_TIME = true;
 let SHOW_DELTA = true;
 let SHOW_TREND_ARROWS = true;
 let NOTIFICATION_OUT_OF_RANGE = true;
@@ -233,6 +234,17 @@ const Indicator = GObject.registerClass(
         settings.set_boolean("show-elapsed-time", item.state);
       });
 
+      // ------ Toggle: show-stale-elapsed-time
+
+      this._showStaleElapsedTimeItem = new PopupMenu.PopupSwitchMenuItem(
+        _("Show stale elapsed time"),
+        SHOW_STALE_ELAPSED_TIME,
+      );
+
+      this._showStaleElapsedTimeItem.connect("toggled", (item) => {
+        settings.set_boolean("show-stale-elapsed-time", item.state);
+      });
+
       // ------ Settings
 
       let settingsItem = new PopupMenu.PopupMenuItem(_("All settings"));
@@ -251,6 +263,7 @@ const Indicator = GObject.registerClass(
       this.menu.addMenuItem(this._showDeltaItem);
       this.menu.addMenuItem(this._showTrendArrowsItem);
       this.menu.addMenuItem(this._showElapsedTimeItem);
+      this.menu.addMenuItem(this._showStaleElapsedTimeItem);
       this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
       this.menu.addMenuItem(settingsItem);
     }
@@ -292,6 +305,7 @@ const Indicator = GObject.registerClass(
       TIMEOUT_TIME = settings.get_int("timeout-time");
 
       SHOW_ELAPSED_TIME = settings.get_boolean("show-elapsed-time");
+      SHOW_STALE_ELAPSED_TIME = settings.get_boolean("show-stale-elapsed-time");
       SHOW_DELTA = settings.get_boolean("show-delta");
       SHOW_TREND_ARROWS = settings.get_boolean("show-trend-arrows");
 
@@ -531,6 +545,19 @@ const Indicator = GObject.registerClass(
 
       if (elapsed >= STALE_DATA_THRESHOLD * 60) {
         elapsedText = "STALE";
+
+        if (SHOW_STALE_ELAPSED_TIME) {
+          elapsedText += " for ";
+
+          if (elapsed >= 86400) {
+            elapsedText += ">day";
+          } else if (elapsed >= 3600) {
+            elapsedText += `${Math.floor(elapsed / 3600)}h`;
+          } else {
+            elapsedText += `${Math.floor(elapsed / 60)}m`;
+          }
+        }
+
         this.buttonElapsedTime.style_class = "elapsed-stale";
 
         if (NOTIFICATION_STALE_DATA && !this._lastStaleState) {
