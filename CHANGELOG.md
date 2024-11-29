@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.3.0] - Pending
+### Changed
+- Changed the copy of the stale data notification to avoid confusion.
+
 ## [1.2.0] - 2024-11-27
 ### Added
 - Added elapsed time when data is stale (optional).

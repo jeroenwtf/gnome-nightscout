@@ -580,7 +580,7 @@ const Indicator = GObject.registerClass(
         if (NOTIFICATION_STALE_DATA && !this._lastStaleState) {
           this._showNotification({
             title: "Data is stale",
-            message: `Last reading is from ${Math.floor(elapsed / 60)} minutes ago.`,
+            message: `Data is considered as stale when ${STALE_DATA_THRESHOLD} minutes passed without new readings.`,
             group: "stale-data",
           });
 
