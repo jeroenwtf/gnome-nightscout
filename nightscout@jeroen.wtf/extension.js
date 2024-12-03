@@ -529,7 +529,7 @@ const Indicator = GObject.registerClass(
 
       let glucoseValue = entry.sgv;
       let directionValue = entry.direction;
-      let delta = previousEntry.sgv - entry.sgv;
+      let delta = entry.sgv - previousEntry.sgv;
       let date = entry.date;
 
       let arrow = this._fromNameToArrowCharacter(directionValue);

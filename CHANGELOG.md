@@ -8,6 +8,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 ### Changed
 - Changed the copy of the stale data notification to avoid confusion.
 
+### Fixed
+- Delta plus and minus signs were reversed (thanks ninelore!).
+
 ## [1.2.0] - 2024-11-27
 ### Added
 - Added elapsed time when data is stale (optional).
