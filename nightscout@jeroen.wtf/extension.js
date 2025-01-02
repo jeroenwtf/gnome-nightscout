@@ -46,6 +46,7 @@ let NOTIFICATION_OUT_OF_RANGE = true;
 let NOTIFICATION_STALE_DATA = true;
 let NOTIFICATION_RAPIDLY_CHANGES = true;
 let NOTIFICATION_URGENCY_LEVEL = 2;
+let UNITS = "mg/dl"
 
 // NS thresholds
 let THRESHOLD_BG_HIGH = 260;
@@ -348,11 +349,25 @@ const Indicator = GObject.registerClass(
       }
 
       const thresholds = data.settings.thresholds;
+      UNITS = data.settings.units;
 
-      THRESHOLD_BG_HIGH = thresholds.bgHigh;
-      THRESHOLD_BG_TARGET_TOP = thresholds.bgTargetTop;
-      THRESHOLD_BG_TARGET_BOTTOM = thresholds.bgTargetBottom;
-      THRESHOLD_BG_LOW = thresholds.bgBottom;
+      switch(UNITS) {
+        case "mg/dl":
+          THRESHOLD_BG_HIGH = thresholds.bgHigh;
+          THRESHOLD_BG_TARGET_TOP = thresholds.bgTargetTop;
+          THRESHOLD_BG_TARGET_BOTTOM = thresholds.bgTargetBottom;
+          THRESHOLD_BG_LOW = thresholds.bgBottom;
+          break;
+        case "mmol/L":
+        case "mmol":
+          THRESHOLD_BG_HIGH = this._convertMgDlToMmol(thresholds.bgHigh);
+          THRESHOLD_BG_TARGET_TOP = this._convertMgDlToMmol(thresholds.bgTargetTop);
+          THRESHOLD_BG_TARGET_BOTTOM = this._convertMgDlToMmol(thresholds.bgTargetBottom);
+          THRESHOLD_BG_LOW = this._convertMgDlToMmol(thresholds.bgBottom);
+          break;
+        default:
+          this.buttonText.set_text(`Unknown Unit`);
+      }
     }
 
     async _fetchFromNightscout(url) {
@@ -527,9 +542,24 @@ const Indicator = GObject.registerClass(
         return;
       }
 
-      let glucoseValue = entry.sgv;
+      let glucoseValue;
+      let delta;
+      switch(UNITS) {
+        case "mg/dl":
+          glucoseValue = entry.sgv;
+          delta = entry.sgv - previousEntry.sgv;
+          break;
+        case "mmol/L":
+        case "mmol":
+          glucoseValue = this._convertMgDlToMmol(entry.sgv);
+          delta = this._convertMgDlToMmol(entry.sgv - previousEntry.sgv);
+          break;
+        default:
+          this.buttonText.set_text(`Unknown Unit`);
+          return;
+      }
+      
       let directionValue = entry.direction;
-      let delta = entry.sgv - previousEntry.sgv;
       let date = entry.date;
 
       let arrow = this._fromNameToArrowCharacter(directionValue);
@@ -709,6 +739,10 @@ const Indicator = GObject.registerClass(
         GLib.Source.remove(this._sourceId);
         this._sourceId = null;
       }
+    }
+
+    _convertMgDlToMmol(mgDlValue) {
+      return Math.round(mgDlValue * 0.555) / 10; // Using 0.0555 to convert mg/Dl to mmol/L, then multiplying by 10 (hence 0.555), rounding, then dividing by 10 to allow output to be limited to 1 decimal place
     }
   },
 );
