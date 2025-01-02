@@ -46,7 +46,7 @@ let NOTIFICATION_OUT_OF_RANGE = true;
 let NOTIFICATION_STALE_DATA = true;
 let NOTIFICATION_RAPIDLY_CHANGES = true;
 let NOTIFICATION_URGENCY_LEVEL = 2;
-let UNITS = "mg/dl"
+let UNITS = "mg/dl";
 
 // NS thresholds
 let THRESHOLD_BG_HIGH = 260;
@@ -64,7 +64,7 @@ const Indicator = GObject.registerClass(
     }
 
     _init(extension) {
-      super._init(0.0, _("Nighscout Indicator"));
+      super._init(0.0, _("Nightscout Indicator"));
 
       this.extension = extension;
       this.openSettings = extension.openSettings;
@@ -78,13 +78,13 @@ const Indicator = GObject.registerClass(
       this.httpSession = new Soup.Session();
       this.httpSession.timeout = TIMEOUT_TIME;
 
-      this._fetchThresholds();
-
       this._initIndicator();
       this._initMenu();
 
-      this._checkUpdates();
-      this._startLooping();
+      this._fetchServerSettings().then(() => {
+        this._checkUpdates();
+        this._startLooping();
+      });
     }
 
     _initNotificationsSource() {
@@ -341,32 +341,27 @@ const Indicator = GObject.registerClass(
       );
     }
 
-    async _fetchThresholds() {
-      const data = await this._fetchFromNightscout("/api/v1/status");
+    async _fetchServerSettings() {
+      try {
+        const data = await this._fetchFromNightscout("/api/v1/status");
 
-      if (!data) {
-        return;
-      }
+        if (!data) {
+          throw new Error("No data received from Nightscout server");
+        }
 
-      const thresholds = data.settings.thresholds;
-      UNITS = data.settings.units;
+        const { units, thresholds } = data.settings;
 
-      switch(UNITS) {
-        case "mg/dl":
-          THRESHOLD_BG_HIGH = thresholds.bgHigh;
-          THRESHOLD_BG_TARGET_TOP = thresholds.bgTargetTop;
-          THRESHOLD_BG_TARGET_BOTTOM = thresholds.bgTargetBottom;
-          THRESHOLD_BG_LOW = thresholds.bgBottom;
-          break;
-        case "mmol/L":
-        case "mmol":
-          THRESHOLD_BG_HIGH = this._convertMgDlToMmol(thresholds.bgHigh);
-          THRESHOLD_BG_TARGET_TOP = this._convertMgDlToMmol(thresholds.bgTargetTop);
-          THRESHOLD_BG_TARGET_BOTTOM = this._convertMgDlToMmol(thresholds.bgTargetBottom);
-          THRESHOLD_BG_LOW = this._convertMgDlToMmol(thresholds.bgBottom);
-          break;
-        default:
-          this.buttonText.set_text(`Unknown Unit`);
+        UNITS = ["mmol", "mmol/L"].includes(units) ? "mmol/L" : "mg/dl";
+
+        THRESHOLD_BG_HIGH = this._convertBgValue(thresholds.bgHigh);
+        THRESHOLD_BG_TARGET_TOP = this._convertBgValue(thresholds.bgTargetTop);
+        THRESHOLD_BG_TARGET_BOTTOM = this._convertBgValue(
+          thresholds.bgTargetBottom,
+        );
+        THRESHOLD_BG_LOW = this._convertBgValue(thresholds.bgBottom);
+      } catch (error) {
+        console.error("Error fetching server settings:", error);
+        this._showErrorBox();
       }
     }
 
@@ -542,23 +537,9 @@ const Indicator = GObject.registerClass(
         return;
       }
 
-      let glucoseValue;
-      let delta;
-      switch(UNITS) {
-        case "mg/dl":
-          glucoseValue = entry.sgv;
-          delta = entry.sgv - previousEntry.sgv;
-          break;
-        case "mmol/L":
-        case "mmol":
-          glucoseValue = this._convertMgDlToMmol(entry.sgv);
-          delta = this._convertMgDlToMmol(entry.sgv - previousEntry.sgv);
-          break;
-        default:
-          this.buttonText.set_text(`Unknown Unit`);
-          return;
-      }
-      
+      let glucoseValue = this._convertBgValue(entry.sgv);
+      let delta = this._convertBgValue(entry.sgv - previousEntry.sgv);
+
       let directionValue = entry.direction;
       let date = entry.date;
 
@@ -741,8 +722,12 @@ const Indicator = GObject.registerClass(
       }
     }
 
-    _convertMgDlToMmol(mgDlValue) {
-      return Math.round(mgDlValue * 0.555) / 10; // Using 0.0555 to convert mg/Dl to mmol/L, then multiplying by 10 (hence 0.555), rounding, then dividing by 10 to allow output to be limited to 1 decimal place
+    _convertBgValue(mgDlValue) {
+      if (UNITS == "mmol/L") {
+        return (mgDlValue * 0.0555).toFixed(1);
+      }
+
+      return mgDlValue;
     }
   },
 );
