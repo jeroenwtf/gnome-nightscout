@@ -49,16 +49,16 @@ I developed it to cover my needs, which so far doesn't include insulin pump feat
 
 According to [the documentation](https://gjs.guide/extensions/topics/notifications.html), the urgency level controls how and when the notifications are presented to the user. Copypasting from the documentation:
 
-> **Low**
+> **Low**<br />
 > These notifications will be shown in the tray, but will not popup on the screen or be expanded.
 >
-> **Normal**
+> **Normal**<br />
 > These notifications will be shown in the tray, and will popup on the screen unless the policy forbids it.
 >
-> **High**
+> **High**<br />
 > These notifications will be shown in the tray, and will popup on the screen unless the policy forbids it.
 >
-> **Critical**
+> **Critical**<br />
 > These notifications will always be shown, with the banner expanded, and must be acknowledged by the user before they will be dismissed.
 
 I would suggest you to try them and see what works better for you. In the future I want to add better management for the notifications, like snoozing them and so on.
