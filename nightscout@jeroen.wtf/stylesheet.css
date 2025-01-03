@@ -7,21 +7,16 @@
 }
 
 .elapsed {
-  color: #888888;
+  color: rgba(255, 255, 255, 0.6);
   margin-left: 5px;
 }
 
 .elapsed-stale {
   margin-left: 5px;
-  color: white;
-  background-color: #624f47;
+  color: rgba(255, 255, 255, 0.8);
+  background-color: rgba(255, 255, 255, 0.3);
   border-radius: 4px;
   padding: 0 4px;
-}
-
-.dropdown-icon {
-  width: 1em;
-  height: 1em;
 }
 
 .very-low-glucose,
