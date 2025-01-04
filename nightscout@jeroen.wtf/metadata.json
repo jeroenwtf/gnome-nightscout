@@ -7,5 +7,9 @@
     "46",
     "47"
   ],
-  "settings-schema": "org.gnome.shell.extensions.nightscout"
+  "settings-schema": "org.gnome.shell.extensions.nightscout",
+  "version-name": "1.4.1",
+  "donations": {
+    "buymeacoffee": "jeroenwtf"
+  }
 }
