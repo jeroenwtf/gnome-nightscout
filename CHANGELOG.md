@@ -4,7 +4,11 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [1.4.0] - Pending
+## [1.4.1] - Pending
+### Fixed
+- Bug with mmol/L values triggering always very low alerts when out of range.
+
+## [1.4.0] - 2025-01-03
 ### Added
 - Support for mmol/L units (thanks @3-5mmJack!).
 
