@@ -358,7 +358,7 @@ const Indicator = GObject.registerClass(
         THRESHOLD_BG_TARGET_BOTTOM = this._convertBgValue(
           thresholds.bgTargetBottom,
         );
-        THRESHOLD_BG_LOW = this._convertBgValue(thresholds.bgBottom);
+        THRESHOLD_BG_LOW = this._convertBgValue(thresholds.bgLow);
       } catch (error) {
         console.error("Error fetching server settings:", error);
         this._showErrorBox();
@@ -538,13 +538,16 @@ const Indicator = GObject.registerClass(
       }
 
       let glucoseValue = this._convertBgValue(entry.sgv);
+      let glucoseValueString =
+        UNITS == "mmol/L" ? glucoseValue.toFixed(1) : glucoseValue.toString();
       let delta = this._convertBgValue(entry.sgv - previousEntry.sgv);
+      let deltaString = UNITS == "mmol/L" ? delta.toFixed(1) : delta.toString();
 
       let directionValue = entry.direction;
       let date = entry.date;
 
       let arrow = this._fromNameToArrowCharacter(directionValue);
-      let deltaText = `${delta < 0 ? "" : "+"}${delta}`;
+      let deltaText = `${delta < 0 ? "" : "+"}${deltaString}`;
 
       if (
         NOTIFICATION_RAPIDLY_CHANGES &&
@@ -553,7 +556,7 @@ const Indicator = GObject.registerClass(
         if (directionValue == "DoubleDown" || directionValue == "TripleDown") {
           this._showNotification({
             title: "Rapidly lowering!",
-            message: `Glucose level is going down quick.`,
+            message: `Glucose level is dropping fast (${deltaText}).`,
             group: "rapidly-changes",
           });
         } else if (
@@ -562,7 +565,7 @@ const Indicator = GObject.registerClass(
         ) {
           this._showNotification({
             title: "Rapidly rising!",
-            message: `Glucose level is going up quick.`,
+            message: `Glucose level is going up fast (${deltaText}).`,
             group: "rapidly-changes",
           });
         }
@@ -620,7 +623,7 @@ const Indicator = GObject.registerClass(
           this._lastRange !== "very-low" &&
           this._showNotification({
             title: "You're VERY low!",
-            message: `Glucose level is ${glucoseValue}. DO SOMETHING!`,
+            message: `Glucose level is ${glucoseValueString}. DO SOMETHING!`,
             group: "out-of-range",
           });
 
@@ -633,7 +636,7 @@ const Indicator = GObject.registerClass(
           this._lastRange !== "low" &&
           this._showNotification({
             title: "You're too low!",
-            message: `Glucose level is ${glucoseValue}. It's below range.`,
+            message: `Glucose level is ${glucoseValueString}. It's below range.`,
             group: "out-of-range",
           });
 
@@ -645,7 +648,7 @@ const Indicator = GObject.registerClass(
           this._lastRange !== "very-high" &&
           this._showNotification({
             title: "You're too high!",
-            message: `Glucose level is ${glucoseValue}. Did you forget your insulin?`,
+            message: `Glucose level is ${glucoseValueString}. Did you forget your insulin?`,
             group: "out-of-range",
           });
 
@@ -658,7 +661,7 @@ const Indicator = GObject.registerClass(
           this._lastRange !== "high" &&
           this._showNotification({
             title: "You're high!",
-            message: `Glucose level is ${glucoseValue}. It's above range.`,
+            message: `Glucose level is ${glucoseValueString}. It's above range.`,
             group: "out-of-range",
           });
 
@@ -670,7 +673,7 @@ const Indicator = GObject.registerClass(
         this._destroyNotification("out-of-range");
       }
 
-      this.buttonText.set_text(glucoseValue.toString());
+      this.buttonText.set_text(glucoseValueString);
 
       this.buttonDelta.set_text(deltaText);
       this.buttonTrendArrows.set_text(arrow);
@@ -724,7 +727,7 @@ const Indicator = GObject.registerClass(
 
     _convertBgValue(mgDlValue) {
       if (UNITS == "mmol/L") {
-        return (mgDlValue * 0.0555).toFixed(1);
+        return mgDlValue * 0.0555;
       }
 
       return mgDlValue;
