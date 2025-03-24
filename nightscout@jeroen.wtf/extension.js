@@ -32,6 +32,8 @@ import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import * as MessageTray from "resource:///org/gnome/shell/ui/messageTray.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 
+const useOrientation = "orientation" in St.BoxLayout.prototype;
+
 // Settings
 let NIGHTSCOUT_URL = "https://yournightscoutsite.com";
 let AUTHENTICATION_TOKEN = "";
@@ -103,7 +105,9 @@ const Indicator = GObject.registerClass(
 
     _initIndicator() {
       this.box = new St.BoxLayout({
-        orientation: Clutter.Orientation.HORIZONTAL,
+        [useOrientation ? "orientation" : "vertical"]: useOrientation
+          ? Clutter.Orientation.HORIZONTAL
+          : false,
         reactive: true,
         can_focus: true,
         x_align: Clutter.ActorAlign.START,
@@ -142,7 +146,9 @@ const Indicator = GObject.registerClass(
       // ------ Toggle: show-elapsed-time
 
       this.elapsedBox = new St.BoxLayout({
-        orientation: Clutter.Orientation.HORIZONTAL,
+        [useOrientation ? "orientation" : "vertical"]: useOrientation
+          ? Clutter.Orientation.HORIZONTAL
+          : false,
         x_align: Clutter.ActorAlign.START,
         y_align: Clutter.ActorAlign.CENTER,
         style_class: "elapsed",
@@ -167,7 +173,9 @@ const Indicator = GObject.registerClass(
       SHOW_STALE_ELAPSED_TIME || this.buttonStaleElapsedTime.hide();
 
       this.errorBox = new St.BoxLayout({
-        orientation: Clutter.Orientation.HORIZONTAL,
+        [useOrientation ? "orientation" : "vertical"]: useOrientation
+          ? Clutter.Orientation.HORIZONTAL
+          : false,
         reactive: true,
         can_focus: true,
         x_align: Clutter.ActorAlign.START,
