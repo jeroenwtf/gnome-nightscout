@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [1.4.1] - Pending
+### Added
+- Support for GNOME 48.
+
+## [1.4.1] - 2025-01-04
 ### Fixed
 - Bug with mmol/L values triggering always very low alerts when out of range.
 

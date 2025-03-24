@@ -103,7 +103,7 @@ const Indicator = GObject.registerClass(
 
     _initIndicator() {
       this.box = new St.BoxLayout({
-        vertical: false,
+        orientation: Clutter.Orientation.HORIZONTAL,
         reactive: true,
         can_focus: true,
         x_align: Clutter.ActorAlign.START,
@@ -142,7 +142,7 @@ const Indicator = GObject.registerClass(
       // ------ Toggle: show-elapsed-time
 
       this.elapsedBox = new St.BoxLayout({
-        vertical: false,
+        orientation: Clutter.Orientation.HORIZONTAL,
         x_align: Clutter.ActorAlign.START,
         y_align: Clutter.ActorAlign.CENTER,
         style_class: "elapsed",
@@ -167,7 +167,7 @@ const Indicator = GObject.registerClass(
       SHOW_STALE_ELAPSED_TIME || this.buttonStaleElapsedTime.hide();
 
       this.errorBox = new St.BoxLayout({
-        vertical: false,
+        orientation: Clutter.Orientation.HORIZONTAL,
         reactive: true,
         can_focus: true,
         x_align: Clutter.ActorAlign.START,

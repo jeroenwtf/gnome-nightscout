@@ -5,10 +5,11 @@
   "url": "https://github.com/jeroenwtf/gnome-nightscout",
   "shell-version": [
     "46",
-    "47"
+    "47",
+    "48"
   ],
   "settings-schema": "org.gnome.shell.extensions.nightscout",
-  "version-name": "1.4.1",
+  "version-name": "1.5.0",
   "donations": {
     "buymeacoffee": "jeroenwtf"
   }
