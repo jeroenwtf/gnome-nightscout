@@ -84,5 +84,11 @@
       <summary>Seconds to timeout</summary>
       <description>The amount of time in seconds to declare that a call timed out (your server didn't answer)</description>
     </key>
+
+    <key name="units-selection" type="s">
+      <default>'auto'</default>
+      <summary>Units selection</summary>
+      <description>Units to display glucose values in. 'auto' uses server settings, 'mg/dl' or 'mmol/L' for manual selection</description>
+    </key>
   </schema>
 </schemalist>
