@@ -50,12 +50,16 @@ let NOTIFICATION_RAPIDLY_CHANGES = true;
 let NOTIFICATION_URGENCY_LEVEL = 2;
 let UNITS_SELECTION = "auto";
 let UNITS = "mg/dl";
-
-// NS thresholds
 let THRESHOLD_BG_HIGH = 260;
 let THRESHOLD_BG_TARGET_TOP = 180;
 let THRESHOLD_BG_TARGET_BOTTOM = 70;
 let THRESHOLD_BG_LOW = 55;
+
+let SERVER_UNITS = "mg/dl";
+let SERVER_THRESHOLD_BG_HIGH = 260;
+let SERVER_THRESHOLD_BG_TARGET_TOP = 180;
+let SERVER_THRESHOLD_BG_TARGET_BOTTOM = 70;
+let SERVER_THRESHOLD_BG_LOW = 55;
 
 const Indicator = GObject.registerClass(
   class Indicator extends PanelMenu.Button {
@@ -313,9 +317,11 @@ const Indicator = GObject.registerClass(
       this._fetchSettings();
     }
 
-    _onSettingsChange() {
+    async _onSettingsChange() {
       try {
         this._fetchSettings();
+        await this._fetchServerSettings();
+        await this._checkUpdates();
 
         this._updateMenu();
         this._updateIndicator();
@@ -350,10 +356,35 @@ const Indicator = GObject.registerClass(
       );
 
       UNITS_SELECTION = settings.get_string("units-selection");
-      this._setUnitsFromSelection();
+    }
+
+    _storeNewUnits() {
+      UNITS =
+        {
+          auto: SERVER_UNITS,
+          "mmol/L": "mmol/L",
+        }[UNITS_SELECTION] || "mg/dl";
+
+      console.log(
+        "Storing new units in:",
+        UNITS,
+        "- Even tho the server is in:",
+        SERVER_UNITS,
+      );
+
+      THRESHOLD_BG_HIGH = this._convertBgValue(SERVER_THRESHOLD_BG_HIGH);
+      THRESHOLD_BG_TARGET_TOP = this._convertBgValue(
+        SERVER_THRESHOLD_BG_TARGET_TOP,
+      );
+      THRESHOLD_BG_TARGET_BOTTOM = this._convertBgValue(
+        SERVER_THRESHOLD_BG_TARGET_BOTTOM,
+      );
+      THRESHOLD_BG_LOW = this._convertBgValue(SERVER_THRESHOLD_BG_LOW);
     }
 
     async _fetchServerSettings() {
+      console.log("⬇️ fetchServerSettings");
+
       try {
         const data = await this._fetchFromNightscout("/api/v1/status");
 
@@ -363,17 +394,13 @@ const Indicator = GObject.registerClass(
 
         const { units, thresholds } = data.settings;
 
-        // Only use server units if user hasn't manually selected units
-        if (UNITS_SELECTION === "auto") {
-          UNITS = ["mmol", "mmol/L"].includes(units) ? "mmol/L" : "mg/dl";
-        }
+        SERVER_UNITS = ["mmol", "mmol/L"].includes(units) ? "mmol/L" : "mg/dl";
+        SERVER_THRESHOLD_BG_HIGH = thresholds.bgHigh;
+        SERVER_THRESHOLD_BG_TARGET_TOP = thresholds.bgTargetTop;
+        SERVER_THRESHOLD_BG_TARGET_BOTTOM = thresholds.bgTargetBottom;
+        SERVER_THRESHOLD_BG_LOW = thresholds.bgLow;
 
-        THRESHOLD_BG_HIGH = this._convertBgValue(thresholds.bgHigh);
-        THRESHOLD_BG_TARGET_TOP = this._convertBgValue(thresholds.bgTargetTop);
-        THRESHOLD_BG_TARGET_BOTTOM = this._convertBgValue(
-          thresholds.bgTargetBottom,
-        );
-        THRESHOLD_BG_LOW = this._convertBgValue(thresholds.bgLow);
+        this._storeNewUnits();
       } catch (error) {
         console.error("Error fetching server settings:", error);
         this._showErrorBox();
@@ -552,9 +579,13 @@ const Indicator = GObject.registerClass(
         return;
       }
 
+      console.log("🔁 checkUpdates");
+      console.log("New SGV:", entry.sgv);
+      console.log("Show with UNITS:", UNITS);
+
       let glucoseValue = this._convertBgValue(entry.sgv);
-      let glucoseValueString =
-        UNITS == "mmol/L" ? glucoseValue.toFixed(1) : glucoseValue.toString();
+      let glucoseValueString = glucoseValue.toString();
+      console.log("glucoseValueString:", glucoseValueString);
       let delta = this._convertBgValue(entry.sgv - previousEntry.sgv);
       let deltaString = UNITS == "mmol/L" ? delta.toFixed(1) : delta.toString();
 
@@ -740,23 +771,22 @@ const Indicator = GObject.registerClass(
       }
     }
 
-    _setUnitsFromSelection() {
-      if (UNITS_SELECTION === "auto") {
-        // Units will be set from server in _fetchServerSettings
-        return;
-      } else if (UNITS_SELECTION === "mg/dl") {
-        UNITS = "mg/dl";
-      } else if (UNITS_SELECTION === "mmol/L") {
-        UNITS = "mmol/L";
-      }
-    }
-
-    _convertBgValue(mgDlValue) {
-      if (UNITS == "mmol/L") {
-        return mgDlValue * 0.0555;
+    _convertBgValue(value) {
+      if (UNITS === SERVER_UNITS) {
+        return UNITS === "mmol/L" ? Number(value).toFixed(1) : value;
       }
 
-      return mgDlValue;
+      if (UNITS === "mmol/L" && SERVER_UNITS === "mg/dl") {
+        const convertedValue = value * 0.0555;
+        return Number(convertedValue.toFixed(1));
+      }
+
+      if (UNITS === "mg/dl" && SERVER_UNITS === "mmol/L") {
+        const convertedValue = value / 0.0555;
+        return Math.round(convertedValue);
+      }
+
+      return value;
     }
   },
 );
