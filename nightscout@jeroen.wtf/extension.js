@@ -376,8 +376,6 @@ const Indicator = GObject.registerClass(
     }
 
     async _fetchServerSettings() {
-      console.log("⬇️ fetchServerSettings");
-
       try {
         const data = await this._fetchFromNightscout("/api/v1/status");
 
@@ -571,9 +569,6 @@ const Indicator = GObject.registerClass(
         this.buttonText.set_text(`No data`);
         return;
       }
-
-      console.log("🔁 checkUpdates");
-      console.log("New SGV:", entry.sgv);
 
       let glucoseValue = this._convertBgValue(entry.sgv);
       let glucoseValueString = glucoseValue.toString();
