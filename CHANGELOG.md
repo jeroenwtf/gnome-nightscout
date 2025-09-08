@@ -4,7 +4,14 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
-## [1.4.1] - Pending
+## [1.6.0] - Pending
+### Added
+- Selector to ignore server units and force mg/dl or mmol/L locally (thanks @yamixst!).
+
+### Fixed
+- Weird value conversion if the server uses mmol/L.
+
+## [1.5.0] - 2025-03-24
 ### Added
 - Support for GNOME 48.
 
