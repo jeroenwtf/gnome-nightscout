@@ -172,15 +172,13 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     page.add(unitsGroup);
 
     let unitsList = new Gtk.StringList();
-    unitsList.append(_("Automatic (from server)"));
+    unitsList.append(_("Auto (from server)"));
     unitsList.append(_("mg/dL"));
     unitsList.append(_("mmol/L"));
 
     const unitsSelectionRow = new Adw.ComboRow({
       title: _("Glucose units"),
-      subtitle: _(
-        "Choose units for displaying glucose values. Automatic uses server settings.",
-      ),
+      subtitle: _("Used to display glucose values."),
       model: unitsList,
     });
     unitsGroup.add(unitsSelectionRow);
