@@ -171,7 +171,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     });
     page.add(unitsGroup);
 
-    let unitsList = new Gtk.StringList();
+    const unitsList = new Gtk.StringList();
     unitsList.append(_("Auto (from server)"));
     unitsList.append(_("mg/dL"));
     unitsList.append(_("mmol/L"));
@@ -183,11 +183,11 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     });
     unitsGroup.add(unitsSelectionRow);
 
-    // Map string values to indices for the combo box
     const unitsMap = ["auto", "mg/dl", "mmol/L"];
     const currentUnits = window._settings.get_string("units-selection");
     const currentIndex = unitsMap.indexOf(currentUnits);
-    if (currentIndex >= 0) {
+
+    if (currentIndex !== -1) {
       unitsSelectionRow.set_selected(currentIndex);
     }
 
