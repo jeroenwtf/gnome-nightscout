@@ -344,6 +344,8 @@ const Indicator = GObject.registerClass(
       SHOW_DELTA = settings.get_boolean("show-delta");
       SHOW_TREND_ARROWS = settings.get_boolean("show-trend-arrows");
 
+      UNITS_SELECTION = settings.get_string("units-selection");
+
       NOTIFICATION_OUT_OF_RANGE = settings.get_boolean(
         "notification-out-of-range",
       );
@@ -354,8 +356,6 @@ const Indicator = GObject.registerClass(
       NOTIFICATION_URGENCY_LEVEL = settings.get_int(
         "notification-urgency-level",
       );
-
-      UNITS_SELECTION = settings.get_string("units-selection");
     }
 
     _storeNewUnits() {
@@ -364,13 +364,6 @@ const Indicator = GObject.registerClass(
           auto: SERVER_UNITS,
           "mmol/L": "mmol/L",
         }[UNITS_SELECTION] || "mg/dl";
-
-      console.log(
-        "Storing new units in:",
-        UNITS,
-        "- Even tho the server is in:",
-        SERVER_UNITS,
-      );
 
       THRESHOLD_BG_HIGH = this._convertBgValue(SERVER_THRESHOLD_BG_HIGH);
       THRESHOLD_BG_TARGET_TOP = this._convertBgValue(
@@ -581,13 +574,11 @@ const Indicator = GObject.registerClass(
 
       console.log("🔁 checkUpdates");
       console.log("New SGV:", entry.sgv);
-      console.log("Show with UNITS:", UNITS);
 
       let glucoseValue = this._convertBgValue(entry.sgv);
       let glucoseValueString = glucoseValue.toString();
-      console.log("glucoseValueString:", glucoseValueString);
       let delta = this._convertBgValue(entry.sgv - previousEntry.sgv);
-      let deltaString = UNITS == "mmol/L" ? delta.toFixed(1) : delta.toString();
+      let deltaString = delta.toString();
 
       let directionValue = entry.direction;
       let date = entry.date;
@@ -665,51 +656,57 @@ const Indicator = GObject.registerClass(
       if (glucoseValue < THRESHOLD_BG_LOW) {
         this.buttonText.style_class = "very-low-glucose";
 
-        NOTIFICATION_OUT_OF_RANGE &&
-          this._lastRange !== "very-low" &&
+        if (NOTIFICATION_OUT_OF_RANGE && this._lastRange !== "very-low") {
           this._showNotification({
             title: "You're VERY low!",
             message: `Glucose level is ${glucoseValueString}. DO SOMETHING!`,
             group: "out-of-range",
           });
+        }
 
         this._lastRange = "very-low";
       } else if (glucoseValue < THRESHOLD_BG_TARGET_BOTTOM) {
         this.buttonText.style_class = "low-glucose";
 
-        NOTIFICATION_OUT_OF_RANGE &&
+        if (
+          NOTIFICATION_OUT_OF_RANGE &&
           this._lastRange !== "very-low" &&
-          this._lastRange !== "low" &&
+          this._lastRange !== "low"
+        ) {
           this._showNotification({
             title: "You're too low!",
             message: `Glucose level is ${glucoseValueString}. It's below range.`,
             group: "out-of-range",
           });
+        }
 
         this._lastRange = "low";
       } else if (glucoseValue > THRESHOLD_BG_HIGH) {
         this.buttonText.style_class = "very-high-glucose";
 
-        NOTIFICATION_OUT_OF_RANGE &&
-          this._lastRange !== "very-high" &&
+        if (NOTIFICATION_OUT_OF_RANGE && this._lastRange !== "very-high") {
           this._showNotification({
             title: "You're too high!",
             message: `Glucose level is ${glucoseValueString}. Did you forget your insulin?`,
             group: "out-of-range",
           });
+        }
 
         this._lastRange = "very-high";
       } else if (glucoseValue > THRESHOLD_BG_TARGET_TOP) {
         this.buttonText.style_class = "high-glucose";
 
-        NOTIFICATION_OUT_OF_RANGE &&
+        if (
+          NOTIFICATION_OUT_OF_RANGE &&
           this._lastRange !== "very-high" &&
-          this._lastRange !== "high" &&
+          this._lastRange !== "high"
+        ) {
           this._showNotification({
             title: "You're high!",
             message: `Glucose level is ${glucoseValueString}. It's above range.`,
             group: "out-of-range",
           });
+        }
 
         this._lastRange = "high";
       } else {
@@ -728,33 +725,23 @@ const Indicator = GObject.registerClass(
     }
 
     _fromNameToArrowCharacter(directionValue) {
-      switch (directionValue) {
-        case "DoubleDown":
-          return "↓↓";
-        case "DoubleUp":
-          return "↑↑";
-        case "Flat":
-          return "→";
-        case "FortyFiveDown":
-          return "↘";
-        case "FortyFiveUp":
-          return "↗";
-        case "SingleDown":
-          return "↓";
-        case "SingleUp":
-          return "↑";
-        case "TripleDown":
-          return "↓↓↓";
-        case "TripleUp":
-          return "↑↑↑";
-        default:
-          return "";
-      }
+      const directionMap = {
+        DoubleDown: "↓↓",
+        DoubleUp: "↑↑",
+        Flat: "→",
+        FortyFiveDown: "↘",
+        FortyFiveUp: "↗",
+        SingleDown: "↓",
+        SingleUp: "↑",
+        TripleDown: "↓↓↓",
+        TripleUp: "↑↑↑",
+      };
+
+      return directionMap[directionValue] || "";
     }
 
     _hasInternetConnection() {
-      let networkMonitor = Gio.NetworkMonitor.get_default();
-      return networkMonitor.get_network_available();
+      return Gio.NetworkMonitor.get_default().get_network_available();
     }
 
     _disconnectSettings() {
