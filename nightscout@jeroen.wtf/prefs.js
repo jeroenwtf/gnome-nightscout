@@ -166,6 +166,40 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       Gio.SettingsBindFlags.DEFAULT,
     );
 
+    const unitsGroup = new Adw.PreferencesGroup({
+      title: _("Units"),
+    });
+    page.add(unitsGroup);
+
+    let unitsList = new Gtk.StringList();
+    unitsList.append(_("Automatic (from server)"));
+    unitsList.append(_("mg/dL"));
+    unitsList.append(_("mmol/L"));
+
+    const unitsSelectionRow = new Adw.ComboRow({
+      title: _("Glucose units"),
+      subtitle: _(
+        "Choose units for displaying glucose values. Automatic uses server settings.",
+      ),
+      model: unitsList,
+    });
+    unitsGroup.add(unitsSelectionRow);
+
+    // Map string values to indices for the combo box
+    const unitsMap = ["auto", "mg/dl", "mmol/L"];
+    const currentUnits = window._settings.get_string("units-selection");
+    const currentIndex = unitsMap.indexOf(currentUnits);
+    if (currentIndex >= 0) {
+      unitsSelectionRow.set_selected(currentIndex);
+    }
+
+    unitsSelectionRow.connect("notify::selected", () => {
+      const selectedIndex = unitsSelectionRow.get_selected();
+      if (selectedIndex >= 0 && selectedIndex < unitsMap.length) {
+        window._settings.set_string("units-selection", unitsMap[selectedIndex]);
+      }
+    });
+
     const notificationsGroup = new Adw.PreferencesGroup({
       title: _("Notifications"),
     });

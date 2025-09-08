@@ -48,6 +48,7 @@ let NOTIFICATION_OUT_OF_RANGE = true;
 let NOTIFICATION_STALE_DATA = true;
 let NOTIFICATION_RAPIDLY_CHANGES = true;
 let NOTIFICATION_URGENCY_LEVEL = 2;
+let UNITS_SELECTION = "auto";
 let UNITS = "mg/dl";
 
 // NS thresholds
@@ -347,6 +348,9 @@ const Indicator = GObject.registerClass(
       NOTIFICATION_URGENCY_LEVEL = settings.get_int(
         "notification-urgency-level",
       );
+
+      UNITS_SELECTION = settings.get_string("units-selection");
+      this._setUnitsFromSelection();
     }
 
     async _fetchServerSettings() {
@@ -359,7 +363,10 @@ const Indicator = GObject.registerClass(
 
         const { units, thresholds } = data.settings;
 
-        UNITS = ["mmol", "mmol/L"].includes(units) ? "mmol/L" : "mg/dl";
+        // Only use server units if user hasn't manually selected units
+        if (UNITS_SELECTION === "auto") {
+          UNITS = ["mmol", "mmol/L"].includes(units) ? "mmol/L" : "mg/dl";
+        }
 
         THRESHOLD_BG_HIGH = this._convertBgValue(thresholds.bgHigh);
         THRESHOLD_BG_TARGET_TOP = this._convertBgValue(thresholds.bgTargetTop);
@@ -730,6 +737,17 @@ const Indicator = GObject.registerClass(
       if (this._sourceId) {
         GLib.Source.remove(this._sourceId);
         this._sourceId = null;
+      }
+    }
+
+    _setUnitsFromSelection() {
+      if (UNITS_SELECTION === "auto") {
+        // Units will be set from server in _fetchServerSettings
+        return;
+      } else if (UNITS_SELECTION === "mg/dl") {
+        UNITS = "mg/dl";
+      } else if (UNITS_SELECTION === "mmol/L") {
+        UNITS = "mmol/L";
       }
     }
 
