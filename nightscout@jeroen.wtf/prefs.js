@@ -405,23 +405,20 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     // Server configuration group
     const serverConfigGroup = new Adw.PreferencesGroup({
       title: _("Server Configuration"),
-      description: _("The configuration obtained from your Nightscout server."),
+      description: _("Configuration obtained from your Nightscout server"),
     });
     debugPage.add(serverConfigGroup);
 
     // Server status row
     const serverStatusRow = new Adw.ActionRow({
       title: _("Server Status"),
-      subtitle: _("Click 'Fetch server config' to connect"),
+      subtitle: _("Click to fetch server configuration"),
     });
     serverConfigGroup.add(serverStatusRow);
-
-    // Add refresh button to server status row
-    const refreshDebugButton = new Gtk.Button({
-      label: _("Fetch server config"),
-      valign: Gtk.Align.CENTER,
+    serverStatusRow.set_activatable(true);
+    serverStatusRow.connect("activated", () => {
+      this._refreshDebugInfo(window._settings, window._debugElements);
     });
-    serverStatusRow.add_suffix(refreshDebugButton);
 
     // Server version row
     const serverVersionRow = new Adw.ActionRow({
@@ -439,34 +436,40 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     serverUnitsRow.add_css_class("property");
     serverConfigGroup.add(serverUnitsRow);
 
-    // Server threshold rows
+    // Server thresholds expander
+    const serverThresholdsExpander = new Adw.ExpanderRow({
+      title: _("Server Thresholds"),
+      subtitle: _("Blood glucose target ranges from server"),
+    });
+    serverConfigGroup.add(serverThresholdsExpander);
+
     const serverBgLowRow = new Adw.ActionRow({
-      title: _("Server Low Threshold"),
+      title: _("Low Threshold"),
       subtitle: _("Not fetched"),
     });
     serverBgLowRow.add_css_class("property");
-    serverConfigGroup.add(serverBgLowRow);
+    serverThresholdsExpander.add_row(serverBgLowRow);
 
     const serverBgTargetBottomRow = new Adw.ActionRow({
-      title: _("Server Target Bottom"),
+      title: _("Target Bottom"),
       subtitle: _("Not fetched"),
     });
     serverBgTargetBottomRow.add_css_class("property");
-    serverConfigGroup.add(serverBgTargetBottomRow);
+    serverThresholdsExpander.add_row(serverBgTargetBottomRow);
 
     const serverBgTargetTopRow = new Adw.ActionRow({
-      title: _("Server Target Top"),
+      title: _("Target Top"),
       subtitle: _("Not fetched"),
     });
     serverBgTargetTopRow.add_css_class("property");
-    serverConfigGroup.add(serverBgTargetTopRow);
+    serverThresholdsExpander.add_row(serverBgTargetTopRow);
 
     const serverBgHighRow = new Adw.ActionRow({
-      title: _("Server High Threshold"),
+      title: _("High Threshold"),
       subtitle: _("Not fetched"),
     });
     serverBgHighRow.add_css_class("property");
-    serverConfigGroup.add(serverBgHighRow);
+    serverThresholdsExpander.add_row(serverBgHighRow);
 
     // Local settings group
     const localSettingsGroup = new Adw.PreferencesGroup({
@@ -524,6 +527,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       serverConfigGroup,
       localSettingsGroup,
       computedValuesGroup,
+      serverThresholdsExpander,
       serverStatusRow,
       serverVersionRow,
       serverUnitsRow,
@@ -538,11 +542,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       computedHighRow,
     };
 
-    // Connect refresh button
-    refreshDebugButton.connect("clicked", () => {
-      this._refreshDebugInfo(window._settings, window._debugElements);
-    });
-
+    
     // Connect to settings changes for real-time debug updates
     window._settingsHandler = window._settings.connect("changed", () => {
       this._updateDebugInfo(window._settings, window._debugElements);
@@ -773,9 +773,23 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     // Store group reference for updates
     window._debugSettingsGroup = group;
 
-    // Create rows for each setting in the global schema
+    // Separate settings into categories
+    const basicSettings = [];
+    const showSettings = [];
+    const notificationSettings = [];
+
     this._settingsSchema.forEach((setting) => {
-      // Get initial value based on type
+      if (setting.key.startsWith("show-")) {
+        showSettings.push(setting);
+      } else if (setting.key.startsWith("notification-")) {
+        notificationSettings.push(setting);
+      } else {
+        basicSettings.push(setting);
+      }
+    });
+
+    // Create rows for basic settings
+    basicSettings.forEach((setting) => {
       let value;
       if (setting.type === "int") {
         value = settings.get_int(setting.key);
@@ -785,7 +799,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
         value = settings.get_string(setting.key);
       }
 
-      // Create title from key
       const title = setting.key
         .split("-")
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -798,7 +811,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       row.add_css_class("property");
       group.add(row);
 
-      // Connect to changes and update the row subtitle
+      // Connect to changes
       const handler = settings.connect(`changed::${setting.key}`, () => {
         let newValue;
         if (setting.type === "int") {
@@ -811,33 +824,136 @@ export default class NightscoutPreferences extends ExtensionPreferences {
         row.set_subtitle(setting.format(newValue));
       });
 
-      // Store the handler for cleanup
       if (!window._debugHandlers) window._debugHandlers = {};
       window._debugHandlers[setting.key] = handler;
     });
+
+    // Create expander for "show..." settings
+    if (showSettings.length > 0) {
+      const showExpander = new Adw.ExpanderRow({
+        title: _("Display Options"),
+        subtitle: _("Settings for what information to show"),
+      });
+      group.add(showExpander);
+
+      showSettings.forEach((setting) => {
+        let value = settings.get_boolean(setting.key);
+        const title = setting.key
+          .replace("show-", "")
+          .split("-")
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(" ");
+
+        const row = new Adw.ActionRow({
+          title: title,
+          subtitle: setting.format(value),
+        });
+        row.add_css_class("property");
+        showExpander.add_row(row);
+
+        const handler = settings.connect(`changed::${setting.key}`, () => {
+          let newValue = settings.get_boolean(setting.key);
+          row.set_subtitle(setting.format(newValue));
+        });
+
+        if (!window._debugHandlers) window._debugHandlers = {};
+        window._debugHandlers[setting.key] = handler;
+      });
+    }
+
+    // Create expander for notification settings
+    if (notificationSettings.length > 0) {
+      const notificationExpander = new Adw.ExpanderRow({
+        title: _("Notifications"),
+        subtitle: _("Alert and notification preferences"),
+      });
+      group.add(notificationExpander);
+
+      notificationSettings.forEach((setting) => {
+        let value;
+        if (setting.type === "int") {
+          value = settings.get_int(setting.key);
+        } else {
+          value = settings.get_boolean(setting.key);
+        }
+        const title = setting.key
+          .replace("notification-", "")
+          .split("-")
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(" ");
+
+        const row = new Adw.ActionRow({
+          title: title,
+          subtitle: setting.format(value),
+        });
+        row.add_css_class("property");
+        notificationExpander.add_row(row);
+
+        const handler = settings.connect(`changed::${setting.key}`, () => {
+          let newValue;
+          if (setting.type === "int") {
+            newValue = settings.get_int(setting.key);
+          } else {
+            newValue = settings.get_boolean(setting.key);
+          }
+          row.set_subtitle(setting.format(newValue));
+        });
+
+        if (!window._debugHandlers) window._debugHandlers = {};
+        window._debugHandlers[setting.key] = handler;
+      });
+    }
   }
 
   _updateLocalSettings(settings, group) {
     // Find and update existing rows
     let child = group.get_first_child();
-    let rowIndex = 0;
 
-    // Update each row with current values using the global schema
-    while (child && rowIndex < this._settingsSchema.length) {
-      const setting = this._settingsSchema[rowIndex];
-      let value;
+    while (child) {
+      if (child.title && child.subtitle && child.get_css_classes().includes("property")) {
+        // Try to find a matching setting in the schema
+        const matchingSetting = this._settingsSchema.find(setting => {
+          const title = setting.key
+            .split("-")
+            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+            .join(" ");
 
-      if (setting.type === "string") {
-        value = settings.get_string(setting.key);
-      } else if (setting.type === "int") {
-        value = settings.get_int(setting.key);
-      } else if (setting.type === "boolean") {
-        value = settings.get_boolean(setting.key);
+          // Handle special cases for grouped settings
+          if (setting.key.startsWith("show-")) {
+            const cleanTitle = setting.key
+              .replace("show-", "")
+              .split("-")
+              .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(" ");
+            return child.title === cleanTitle;
+          }
+
+          if (setting.key.startsWith("notification-")) {
+            const cleanTitle = setting.key
+              .replace("notification-", "")
+              .split("-")
+              .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(" ");
+            return child.title === cleanTitle;
+          }
+
+          return child.title === title;
+        });
+
+        if (matchingSetting) {
+          let value;
+          if (matchingSetting.type === "string") {
+            value = settings.get_string(matchingSetting.key);
+          } else if (matchingSetting.type === "int") {
+            value = settings.get_int(matchingSetting.key);
+          } else if (matchingSetting.type === "boolean") {
+            value = settings.get_boolean(matchingSetting.key);
+          }
+
+          child.set_subtitle(matchingSetting.format(value));
+        }
       }
-
-      child.set_subtitle(setting.format(value));
       child = child.get_next_sibling();
-      rowIndex++;
     }
   }
 
