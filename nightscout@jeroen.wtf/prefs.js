@@ -640,7 +640,9 @@ export default class NightscoutPreferences extends ExtensionPreferences {
 
     // Update server status to show loading
     debugElements.serverStatusRow.set_title(_("Fetching..."));
-    debugElements.serverStatusRow.set_subtitle(_("Connecting to Nightscout server..."));
+    debugElements.serverStatusRow.set_subtitle(
+      _("Connecting to Nightscout server..."),
+    );
 
     try {
       const response = await this._fetchServerStatus(settings);
@@ -1151,7 +1153,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
   }
 
   _is24HourFormat() {
-    // Get the user's time format preference
     const settings = new Gio.Settings({
       schema: "org.gnome.desktop.interface",
     });
