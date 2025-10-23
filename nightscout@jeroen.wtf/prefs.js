@@ -587,8 +587,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
         }
 
         const bytes = session.send_and_read_finish(result);
-        const decoder = new TextDecoder("utf-8");
-        const response = JSON.parse(decoder.decode(bytes.get_data()));
+        const response = JSON.parse(bytes.get_data().toString());
         const version = response.version;
         statusLabel.set_title(_(`Success! Version: ${version}`));
       });
@@ -666,8 +665,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
         });
       });
 
-      const decoder = new TextDecoder("utf-8");
-      const response = JSON.parse(decoder.decode(bytes.get_data()));
+      const response = JSON.parse(bytes.get_data().toString());
 
       // Update server status row that will be recreated in _displayServerConfig
       // The refresh button will be added there as well
