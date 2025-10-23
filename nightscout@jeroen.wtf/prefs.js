@@ -289,13 +289,26 @@ export default class NightscoutPreferences extends ExtensionPreferences {
 
     // Debug page
     const debugPage = new Adw.PreferencesPage({
-      title: _("Debug"),
-      icon_name: "applications-science-symbolic",
+      title: _("Diagnostics"),
+      icon_name: "org.gnome.Settings-device-diagnostics-symbolic",
     });
     window.add(debugPage);
 
     const headerGroup = new Adw.PreferencesGroup();
     debugPage.add(headerGroup);
+
+    const introRow = new Adw.ActionRow({
+      title: _(
+        "Use this data to report any problem with the extension. You can attach the info copied with the button below.",
+      ),
+    });
+    headerGroup.add(introRow);
+
+    const githubIssuesButton = new Gtk.Button({
+      label: _("Go to GitHub issues"),
+      valign: Gtk.Align.CENTER,
+    });
+    introRow.add_suffix(githubIssuesButton);
 
     const extensionVersion =
       this._extensionMetadata["version-name"] ||
@@ -316,37 +329,143 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     // Server configuration group
     const serverConfigGroup = new Adw.PreferencesGroup({
       title: _("Server Configuration"),
+      description: _("The configuration obtained from your Nightscout server."),
     });
     debugPage.add(serverConfigGroup);
 
+    // Server status row
     const serverStatusRow = new Adw.ActionRow({
       title: _("Server Status"),
-      subtitle: _("Click 'Refresh' to fetch server data"),
+      subtitle: _("Click 'Fetch server configuration' to connect"),
     });
     serverConfigGroup.add(serverStatusRow);
+
+    // Add refresh button to server status row
+    const refreshDebugButton = new Gtk.Button({
+      label: _("Fetch server configuration"),
+      valign: Gtk.Align.CENTER,
+    });
+    serverStatusRow.add_suffix(refreshDebugButton);
+
+    // Server version row
+    const serverVersionRow = new Adw.ActionRow({
+      title: _("Server Version"),
+      subtitle: _("Not fetched"),
+    });
+    serverVersionRow.add_css_class("property");
+    serverConfigGroup.add(serverVersionRow);
+
+    // Server units row
+    const serverUnitsRow = new Adw.ActionRow({
+      title: _("Server Units"),
+      subtitle: _("Not fetched"),
+    });
+    serverUnitsRow.add_css_class("property");
+    serverConfigGroup.add(serverUnitsRow);
+
+    // Server threshold rows
+    const serverBgLowRow = new Adw.ActionRow({
+      title: _("Server Low Threshold"),
+      subtitle: _("Not fetched"),
+    });
+    serverBgLowRow.add_css_class("property");
+    serverConfigGroup.add(serverBgLowRow);
+
+    const serverBgTargetBottomRow = new Adw.ActionRow({
+      title: _("Server Target Bottom"),
+      subtitle: _("Not fetched"),
+    });
+    serverBgTargetBottomRow.add_css_class("property");
+    serverConfigGroup.add(serverBgTargetBottomRow);
+
+    const serverBgTargetTopRow = new Adw.ActionRow({
+      title: _("Server Target Top"),
+      subtitle: _("Not fetched"),
+    });
+    serverBgTargetTopRow.add_css_class("property");
+    serverConfigGroup.add(serverBgTargetTopRow);
+
+    const serverBgHighRow = new Adw.ActionRow({
+      title: _("Server High Threshold"),
+      subtitle: _("Not fetched"),
+    });
+    serverBgHighRow.add_css_class("property");
+    serverConfigGroup.add(serverBgHighRow);
 
     // Local settings group
     const localSettingsGroup = new Adw.PreferencesGroup({
       title: _("Local Extension Settings"),
+      description: _("The settings in this GNOME extension."),
     });
     debugPage.add(localSettingsGroup);
 
     // Computed values group
     const computedValuesGroup = new Adw.PreferencesGroup({
       title: _("Computed Values"),
+      description: _("The values after applying all the configuration."),
     });
     debugPage.add(computedValuesGroup);
 
+    // Effective units row
+    const effectiveUnitsRow = new Adw.ActionRow({
+      title: _("Effective Units"),
+      subtitle: _("Not fetched"),
+    });
+    effectiveUnitsRow.add_css_class("property");
+    computedValuesGroup.add(effectiveUnitsRow);
+
+    // Computed threshold rows
+    const computedLowRow = new Adw.ActionRow({
+      title: _("Computed Low"),
+      subtitle: _("Not fetched"),
+    });
+    computedLowRow.add_css_class("property");
+    computedValuesGroup.add(computedLowRow);
+
+    const computedTargetBottomRow = new Adw.ActionRow({
+      title: _("Computed Target Bottom"),
+      subtitle: _("Not fetched"),
+    });
+    computedTargetBottomRow.add_css_class("property");
+    computedValuesGroup.add(computedTargetBottomRow);
+
+    const computedTargetTopRow = new Adw.ActionRow({
+      title: _("Computed Target Top"),
+      subtitle: _("Not fetched"),
+    });
+    computedTargetTopRow.add_css_class("property");
+    computedValuesGroup.add(computedTargetTopRow);
+
+    const computedHighRow = new Adw.ActionRow({
+      title: _("Computed High"),
+      subtitle: _("Not fetched"),
+    });
+    computedHighRow.add_css_class("property");
+    computedValuesGroup.add(computedHighRow);
+
     // Store debug elements for updating
     window._debugElements = {
-      serverStatusRow,
       serverConfigGroup,
       localSettingsGroup,
       computedValuesGroup,
+      serverStatusRow,
+      serverVersionRow,
+      serverUnitsRow,
+      serverBgLowRow,
+      serverBgTargetBottomRow,
+      serverBgTargetTopRow,
+      serverBgHighRow,
+      effectiveUnitsRow,
+      computedLowRow,
+      computedTargetBottomRow,
+      computedTargetTopRow,
+      computedHighRow,
     };
 
-    // Store reference for refresh button
-    window._refreshButton = null;
+    // Connect refresh button
+    refreshDebugButton.connect("clicked", () => {
+      this._refreshDebugInfo(window._settings, window._debugElements);
+    });
 
     // Connect copy button
     copyDebugButton.connect("clicked", () => {
@@ -417,6 +536,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     } = debugElements;
 
     // Update server status to show loading
+    serverStatusRow.set_title(_("Updating..."));
     serverStatusRow.set_subtitle(_("Fetching server configuration..."));
 
     // Fetch server configuration and local settings
@@ -441,13 +561,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
   }
 
   async _fetchServerConfigForDebug(settings, debugElements) {
-    const { serverStatusRow, serverConfigGroup, computedValuesGroup } =
-      debugElements;
-
-    // Make sure server status row is added if not already present
-    if (!serverConfigGroup.get_first_child()) {
-      serverConfigGroup.add(serverStatusRow);
-    }
+    const { serverConfigGroup, computedValuesGroup } = debugElements;
 
     // Store reference to debug elements for copying
     window._lastServerData = null;
@@ -501,112 +615,105 @@ export default class NightscoutPreferences extends ExtensionPreferences {
         hour12: this._is24HourFormat() === false,
       });
 
-      serverStatusRow.set_title(_("Connected"));
-      serverStatusRow.set_subtitle(
-        _(`Fetched server configuration at ${currentTime}.`),
-      );
-
-      // Add refresh button to the status row if it doesn't exist
-      if (!window._refreshButton) {
-        window._refreshButton = new Gtk.Button({
-          label: _("Fetch server configuration"),
-          valign: Gtk.Align.CENTER,
-        });
-        serverStatusRow.add_suffix(window._refreshButton);
-
-        // Connect refresh button
-        window._refreshButton.connect("clicked", () => {
-          this._refreshDebugInfo(settings, debugElements);
-        });
-      }
+      // Update server status row that will be recreated in _displayServerConfig
+      // The refresh button will be added there as well
 
       // Store server data for copying
       window._lastServerData = response;
 
-      this._displayServerConfig(response, serverConfigGroup);
-      this._displayComputedValues(response, settings, computedValuesGroup);
+      this._displayServerConfig(response, debugElements);
+      this._displayComputedValues(response, settings, debugElements);
     } catch (error) {
       console.log(error);
-      serverStatusRow.set_title(_("Error"));
-      serverStatusRow.set_subtitle(error.message);
 
-      // Add error details row
-      const errorRow = new Adw.ActionRow({
-        title: _("Error Details"),
-        subtitle: error.toString(),
-      });
-      serverConfigGroup.add(errorRow);
+      // Update server status to show error
+      debugElements.serverStatusRow.set_title(_("Error"));
+      debugElements.serverStatusRow.set_subtitle(error.toString());
+
+      // Reset other values to show error state
+      debugElements.serverVersionRow.set_subtitle(_("Error"));
+      debugElements.serverUnitsRow.set_subtitle(_("Error"));
+      debugElements.serverBgLowRow.set_subtitle(_("Error"));
+      debugElements.serverBgTargetBottomRow.set_subtitle(_("Error"));
+      debugElements.serverBgTargetTopRow.set_subtitle(_("Error"));
+      debugElements.serverBgHighRow.set_subtitle(_("Error"));
+
+      // Reset computed values
+      debugElements.effectiveUnitsRow.set_subtitle(_("Error"));
+      debugElements.computedLowRow.set_subtitle(_("Error"));
+      debugElements.computedTargetBottomRow.set_subtitle(_("Error"));
+      debugElements.computedTargetTopRow.set_subtitle(_("Error"));
+      debugElements.computedHighRow.set_subtitle(_("Error"));
     }
   }
 
-  _displayServerConfig(serverData, group) {
-    // Extension version (already added at top of debug page)
-    // This row is now handled in fillPreferencesWindow
+  _displayServerConfig(serverData, elements) {
+    const currentTime = new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: this._is24HourFormat() === false,
+    });
 
-    // Server version
+    // Update server status
+    elements.serverStatusRow.set_title(_("Connected"));
+    elements.serverStatusRow.set_subtitle(
+      _(`Fetched server configuration at ${currentTime}.`),
+    );
+
+    // Update server version
     if (serverData.version) {
-      const versionRow = new Adw.ActionRow({
-        title: _("Server Version"),
-        subtitle: serverData.version,
-      });
-      versionRow.add_css_class("property");
-      group.add(versionRow);
+      elements.serverVersionRow.set_subtitle(serverData.version);
+    } else {
+      elements.serverVersionRow.set_subtitle(_("Not available"));
     }
 
-    // Server settings
+    // Update server settings
     if (serverData.settings) {
       const settings = serverData.settings;
 
-      // Units
+      // Update units
       if (settings.units) {
-        const unitsRow = new Adw.ActionRow({
-          title: _("Server Units"),
-          subtitle: settings.units,
-        });
-        unitsRow.add_css_class("property");
-        group.add(unitsRow);
+        elements.serverUnitsRow.set_subtitle(settings.units);
+      } else {
+        elements.serverUnitsRow.set_subtitle(_("Not available"));
       }
 
-      // Thresholds
+      // Update thresholds
       if (settings.thresholds) {
         const thresholds = settings.thresholds;
 
-        if (thresholds.bgLow !== undefined) {
-          const bgLowRow = new Adw.ActionRow({
-            title: _("Server Low Threshold"),
-            subtitle: thresholds.bgLow.toString(),
-          });
-          bgLowRow.add_css_class("property");
-          group.add(bgLowRow);
-        }
-
-        if (thresholds.bgTargetBottom !== undefined) {
-          const bgTargetBottomRow = new Adw.ActionRow({
-            title: _("Server Target Bottom"),
-            subtitle: thresholds.bgTargetBottom.toString(),
-          });
-          bgTargetBottomRow.add_css_class("property");
-          group.add(bgTargetBottomRow);
-        }
-
-        if (thresholds.bgTargetTop !== undefined) {
-          const bgTargetTopRow = new Adw.ActionRow({
-            title: _("Server Target Top"),
-            subtitle: thresholds.bgTargetTop.toString(),
-          });
-          bgTargetTopRow.add_css_class("property");
-          group.add(bgTargetTopRow);
-        }
-
-        if (thresholds.bgHigh !== undefined) {
-          const bgHighRow = new Adw.ActionRow({
-            title: _("Server High Threshold"),
-            subtitle: thresholds.bgHigh.toString(),
-          });
-          bgHighRow.add_css_class("property");
-          group.add(bgHighRow);
-        }
+        elements.serverBgLowRow.set_subtitle(
+          thresholds.bgLow !== undefined
+            ? thresholds.bgLow.toString()
+            : _("Not available"),
+        );
+        elements.serverBgTargetBottomRow.set_subtitle(
+          thresholds.bgTargetBottom !== undefined
+            ? thresholds.bgTargetBottom.toString()
+            : _("Not available"),
+        );
+        elements.serverBgTargetTopRow.set_subtitle(
+          thresholds.bgTargetTop !== undefined
+            ? thresholds.bgTargetTop.toString()
+            : _("Not available"),
+        );
+        elements.serverBgHighRow.set_subtitle(
+          thresholds.bgHigh !== undefined
+            ? thresholds.bgHigh.toString()
+            : _("Not available"),
+        );
+      } else {
+        elements.serverBgLowRow.set_subtitle(_("Not available"));
+        elements.serverBgTargetBottomRow.set_subtitle(_("Not available"));
+        elements.serverBgTargetTopRow.set_subtitle(_("Not available"));
+        elements.serverBgHighRow.set_subtitle(_("Not available"));
       }
+    } else {
+      elements.serverUnitsRow.set_subtitle(_("Not available"));
+      elements.serverBgLowRow.set_subtitle(_("Not available"));
+      elements.serverBgTargetBottomRow.set_subtitle(_("Not available"));
+      elements.serverBgTargetTopRow.set_subtitle(_("Not available"));
+      elements.serverBgHighRow.set_subtitle(_("Not available"));
     }
   }
 
@@ -1015,14 +1122,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     clipboard.set(JSON.stringify(allDebugInfo, null, 2));
   }
 
-  _displayComputedValues(serverData, settings, group) {
-    // Store computed values data for updates
-    window._debugComputedData = {
-      serverData,
-      settings,
-      group,
-    };
-
+  _displayComputedValues(serverData, settings, elements) {
     const serverSettings = serverData.settings || {};
     const serverUnits = ["mmol", "mmol/L"].includes(serverSettings.units)
       ? "mmol/L"
@@ -1031,15 +1131,10 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     const effectiveUnits =
       unitsSelection === "auto" ? serverUnits : unitsSelection;
 
-    // Effective units
-    const effectiveUnitsRow = new Adw.ActionRow({
-      title: _("Effective Units"),
-      subtitle: effectiveUnits,
-    });
-    effectiveUnitsRow.add_css_class("property");
-    group.add(effectiveUnitsRow);
+    // Update effective units
+    elements.effectiveUnitsRow.set_subtitle(effectiveUnits);
 
-    // Computed thresholds
+    // Update computed thresholds
     if (serverSettings.thresholds) {
       const thresholds = serverSettings.thresholds;
       const conversionFactor =
@@ -1049,40 +1144,61 @@ export default class NightscoutPreferences extends ExtensionPreferences {
             ? 1 / 0.0555
             : 1;
 
-      const computedValues = [
-        { name: _("Computed Low"), server: thresholds.bgLow },
-        {
-          name: _("Computed Target Bottom"),
-          server: thresholds.bgTargetBottom,
-        },
-        { name: _("Computed Target Top"), server: thresholds.bgTargetTop },
-        { name: _("Computed High"), server: thresholds.bgHigh },
-      ];
+      // Update computed low
+      if (thresholds.bgLow !== undefined) {
+        const converted =
+          Math.round(thresholds.bgLow * conversionFactor * 10) / 10;
+        elements.computedLowRow.set_subtitle(
+          `${converted} ${effectiveUnits} (server: ${thresholds.bgLow} ${serverUnits})`,
+        );
+      } else {
+        elements.computedLowRow.set_subtitle(_("Not available"));
+      }
 
-      computedValues.forEach(({ name, server }) => {
-        if (server !== undefined) {
-          const converted = Math.round(server * conversionFactor * 10) / 10;
-          const row = new Adw.ActionRow({
-            title: name,
-            subtitle: `${converted} ${effectiveUnits} (server: ${server} ${serverUnits})`,
-          });
-          row.add_css_class("property");
-          group.add(row);
-        }
-      });
+      // Update computed target bottom
+      if (thresholds.bgTargetBottom !== undefined) {
+        const converted =
+          Math.round(thresholds.bgTargetBottom * conversionFactor * 10) / 10;
+        elements.computedTargetBottomRow.set_subtitle(
+          `${converted} ${effectiveUnits} (server: ${thresholds.bgTargetBottom} ${serverUnits})`,
+        );
+      } else {
+        elements.computedTargetBottomRow.set_subtitle(_("Not available"));
+      }
+
+      // Update computed target top
+      if (thresholds.bgTargetTop !== undefined) {
+        const converted =
+          Math.round(thresholds.bgTargetTop * conversionFactor * 10) / 10;
+        elements.computedTargetTopRow.set_subtitle(
+          `${converted} ${effectiveUnits} (server: ${thresholds.bgTargetTop} ${serverUnits})`,
+        );
+      } else {
+        elements.computedTargetTopRow.set_subtitle(_("Not available"));
+      }
+
+      // Update computed high
+      if (thresholds.bgHigh !== undefined) {
+        const converted =
+          Math.round(thresholds.bgHigh * conversionFactor * 10) / 10;
+        elements.computedHighRow.set_subtitle(
+          `${converted} ${effectiveUnits} (server: ${thresholds.bgHigh} ${serverUnits})`,
+        );
+      } else {
+        elements.computedHighRow.set_subtitle(_("Not available"));
+      }
+    } else {
+      // No thresholds available
+      elements.computedLowRow.set_subtitle(_("Not available"));
+      elements.computedTargetBottomRow.set_subtitle(_("Not available"));
+      elements.computedTargetTopRow.set_subtitle(_("Not available"));
+      elements.computedHighRow.set_subtitle(_("Not available"));
     }
   }
 
   _updateComputedValues(serverData, settings, group) {
-    // Clear existing computed values
-    let child = group.get_first_child();
-    while (child) {
-      group.remove(child);
-      child = group.get_first_child();
-    }
-
-    // Redisplay computed values with updated settings
-    this._displayComputedValues(serverData, settings, group);
+    // Update existing computed values with updated settings
+    this._displayComputedValues(serverData, settings, window._debugElements);
   }
 
   _is24HourFormat() {
