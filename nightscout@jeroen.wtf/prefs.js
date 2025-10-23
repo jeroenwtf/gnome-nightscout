@@ -13,6 +13,9 @@ export default class NightscoutPreferences extends ExtensionPreferences {
   constructor(metadata) {
     super(metadata);
 
+    // Store metadata for access in methods
+    this._extensionMetadata = metadata;
+
     console.debug(`constructing ${this.metadata.name}`);
   }
 
@@ -21,7 +24,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
 
     const page = new Adw.PreferencesPage({
       title: _("General"),
-      icon_name: "dialog-information-symbolic",
+      icon_name: "applications-system-symbolic",
     });
     window.add(page);
 
@@ -287,38 +290,28 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     // Debug page
     const debugPage = new Adw.PreferencesPage({
       title: _("Debug"),
-      icon_name: "dialog-information-symbolic",
+      icon_name: "applications-science-symbolic",
     });
     window.add(debugPage);
 
-    const debugActionsGroup = new Adw.PreferencesGroup({
-      title: _("Debug Actions"),
-    });
-    debugPage.add(debugActionsGroup);
+    const headerGroup = new Adw.PreferencesGroup();
+    debugPage.add(headerGroup);
 
+    const extensionVersion =
+      this._extensionMetadata["version-name"] ||
+      this._extensionMetadata.version ||
+      "Unknown";
     const copyDebugRow = new Adw.ActionRow({
-      title: _("Copy all debug information"),
-      subtitle: _("Copy server config, local settings, and computed values to clipboard"),
+      title: `${_("Extension Version")}: ${extensionVersion}`,
+      subtitle: _("You can copy this debugging info to share it easily."),
     });
-    debugActionsGroup.add(copyDebugRow);
+    headerGroup.add(copyDebugRow);
 
     const copyDebugButton = new Gtk.Button({
-      label: _("Copy"),
+      label: _("Copy debug info"),
       valign: Gtk.Align.CENTER,
     });
     copyDebugRow.add_suffix(copyDebugButton);
-
-    const refreshDebugRow = new Adw.ActionRow({
-      title: _("Refresh debug information"),
-      subtitle: _("Fetch latest server configuration and update debug info"),
-    });
-    debugActionsGroup.add(refreshDebugRow);
-
-    const refreshDebugButton = new Gtk.Button({
-      label: _("Refresh"),
-      valign: Gtk.Align.CENTER,
-    });
-    refreshDebugRow.add_suffix(refreshDebugButton);
 
     // Server configuration group
     const serverConfigGroup = new Adw.PreferencesGroup({
@@ -352,14 +345,12 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       computedValuesGroup,
     };
 
+    // Store reference for refresh button
+    window._refreshButton = null;
+
     // Connect copy button
     copyDebugButton.connect("clicked", () => {
       this._copyAllDebugInfo(window._settings, window._debugElements);
-    });
-
-    // Connect refresh button
-    refreshDebugButton.connect("clicked", () => {
-      this._refreshDebugInfo(window._settings, window._debugElements);
     });
 
     // Connect to settings changes for real-time debug updates
@@ -418,7 +409,12 @@ export default class NightscoutPreferences extends ExtensionPreferences {
   }
 
   _refreshDebugInfo(settings, debugElements) {
-    const { serverStatusRow, serverConfigGroup, localSettingsGroup, computedValuesGroup } = debugElements;
+    const {
+      serverStatusRow,
+      serverConfigGroup,
+      localSettingsGroup,
+      computedValuesGroup,
+    } = debugElements;
 
     // Update server status to show loading
     serverStatusRow.set_subtitle(_("Fetching server configuration..."));
@@ -436,12 +432,17 @@ export default class NightscoutPreferences extends ExtensionPreferences {
 
     // Update computed values if server data is available
     if (window._lastServerData) {
-      this._updateComputedValues(window._lastServerData, settings, computedValuesGroup);
+      this._updateComputedValues(
+        window._lastServerData,
+        settings,
+        computedValuesGroup,
+      );
     }
   }
 
   async _fetchServerConfigForDebug(settings, debugElements) {
-    const { serverStatusRow, serverConfigGroup, computedValuesGroup } = debugElements;
+    const { serverStatusRow, serverConfigGroup, computedValuesGroup } =
+      debugElements;
 
     // Make sure server status row is added if not already present
     if (!serverConfigGroup.get_first_child()) {
@@ -473,7 +474,9 @@ export default class NightscoutPreferences extends ExtensionPreferences {
         session.send_and_read_async(message, null, null, (session, result) => {
           try {
             if (message.status_code == Soup.Status.UNAUTHORIZED) {
-              reject(new Error("Unauthorized. Check your authentication token."));
+              reject(
+                new Error("Unauthorized. Check your authentication token."),
+              );
               return;
             }
 
@@ -492,15 +495,36 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       const decoder = new TextDecoder("utf-8");
       const response = JSON.parse(decoder.decode(bytes.get_data()));
 
+      const currentTime = new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: this._is24HourFormat() === false,
+      });
+
       serverStatusRow.set_title(_("Connected"));
-      serverStatusRow.set_subtitle(_("Successfully fetched server configuration"));
+      serverStatusRow.set_subtitle(
+        _(`Fetched server configuration at ${currentTime}.`),
+      );
+
+      // Add refresh button to the status row if it doesn't exist
+      if (!window._refreshButton) {
+        window._refreshButton = new Gtk.Button({
+          label: _("Fetch server configuration"),
+          valign: Gtk.Align.CENTER,
+        });
+        serverStatusRow.add_suffix(window._refreshButton);
+
+        // Connect refresh button
+        window._refreshButton.connect("clicked", () => {
+          this._refreshDebugInfo(settings, debugElements);
+        });
+      }
 
       // Store server data for copying
       window._lastServerData = response;
 
       this._displayServerConfig(response, serverConfigGroup);
       this._displayComputedValues(response, settings, computedValuesGroup);
-
     } catch (error) {
       console.log(error);
       serverStatusRow.set_title(_("Error"));
@@ -516,13 +540,8 @@ export default class NightscoutPreferences extends ExtensionPreferences {
   }
 
   _displayServerConfig(serverData, group) {
-    // Extension version
-    const extensionVersion = new Adw.ActionRow({
-      title: _("Extension Version"),
-      subtitle: this.metadata.version || "Unknown",
-    });
-    extensionVersion.add_css_class("property");
-    group.add(extensionVersion);
+    // Extension version (already added at top of debug page)
+    // This row is now handled in fillPreferencesWindow
 
     // Server version
     if (serverData.version) {
@@ -589,14 +608,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
         }
       }
     }
-
-    // Add raw server data as property row
-    const rawDataRow = new Adw.ActionRow({
-      title: _("Raw Server Data"),
-      subtitle: _("Complete server response"),
-    });
-    rawDataRow.add_css_class("property");
-    group.add(rawDataRow);
   }
 
   _displayLocalSettings(settings, group) {
@@ -616,59 +627,129 @@ export default class NightscoutPreferences extends ExtensionPreferences {
         case "stale-data-threshold":
           return _(`${value} minutes`);
         case "notification-urgency-level":
-          const urgencyLevels = [_("Low"), _("Normal"), _("High"), _("Critical")];
+          const urgencyLevels = [
+            _("Low"),
+            _("Normal"),
+            _("High"),
+            _("Critical"),
+          ];
           return urgencyLevels[value] || _("Unknown");
         default:
-          return typeof value === "boolean" ? (value ? _("Enabled") : _("Disabled")) : value;
+          return typeof value === "boolean"
+            ? value
+              ? _("Enabled")
+              : _("Disabled")
+            : value;
       }
     };
 
     // URL - we can't bind directly since we need special formatting
     const urlRow = new Adw.ActionRow({
       title: _("Nightscout URL"),
-      subtitle: formatDisplay("nightscout-url", settings.get_string("nightscout-url")),
+      subtitle: formatDisplay(
+        "nightscout-url",
+        settings.get_string("nightscout-url"),
+      ),
     });
     urlRow.add_css_class("property");
     group.add(urlRow);
 
     // Listen for URL changes
     settings.connect("changed::nightscout-url", () => {
-      urlRow.subtitle = formatDisplay("nightscout-url", settings.get_string("nightscout-url"));
+      urlRow.subtitle = formatDisplay(
+        "nightscout-url",
+        settings.get_string("nightscout-url"),
+      );
     });
 
     // Auth token - special formatting
     const tokenRow = new Adw.ActionRow({
       title: _("Authentication Token"),
-      subtitle: formatDisplay("authentication-token", settings.get_string("authentication-token")),
+      subtitle: formatDisplay(
+        "authentication-token",
+        settings.get_string("authentication-token"),
+      ),
     });
     tokenRow.add_css_class("property");
     group.add(tokenRow);
 
     // Listen for auth token changes
     settings.connect("changed::authentication-token", () => {
-      tokenRow.subtitle = formatDisplay("authentication-token", settings.get_string("authentication-token"));
+      tokenRow.subtitle = formatDisplay(
+        "authentication-token",
+        settings.get_string("authentication-token"),
+      );
     });
 
     // Bind settings that can be directly mapped
     const bindableSettings = [
-      { key: "refresh-interval", property: "subtitle", format: (v) => formatDisplay("refresh-interval", v) },
-      { key: "timeout-time", property: "subtitle", format: (v) => formatDisplay("timeout-time", v) },
-      { key: "stale-data-threshold", property: "subtitle", format: (v) => formatDisplay("stale-data-threshold", v) },
+      {
+        key: "refresh-interval",
+        property: "subtitle",
+        format: (v) => formatDisplay("refresh-interval", v),
+      },
+      {
+        key: "timeout-time",
+        property: "subtitle",
+        format: (v) => formatDisplay("timeout-time", v),
+      },
+      {
+        key: "stale-data-threshold",
+        property: "subtitle",
+        format: (v) => formatDisplay("stale-data-threshold", v),
+      },
       { key: "units-selection", property: "subtitle", format: (v) => v },
-      { key: "show-delta", property: "subtitle", format: (v) => formatDisplay("show-delta", v) },
-      { key: "show-trend-arrows", property: "subtitle", format: (v) => formatDisplay("show-trend-arrows", v) },
-      { key: "show-elapsed-time", property: "subtitle", format: (v) => formatDisplay("show-elapsed-time", v) },
-      { key: "show-stale-elapsed-time", property: "subtitle", format: (v) => formatDisplay("show-stale-elapsed-time", v) },
-      { key: "notification-out-of-range", property: "subtitle", format: (v) => formatDisplay("notification-out-of-range", v) },
-      { key: "notification-stale-data", property: "subtitle", format: (v) => formatDisplay("notification-stale-data", v) },
-      { key: "notification-rapidly-changes", property: "subtitle", format: (v) => formatDisplay("notification-rapidly-changes", v) },
-      { key: "notification-urgency-level", property: "subtitle", format: (v) => formatDisplay("notification-urgency-level", v) },
+      {
+        key: "show-delta",
+        property: "subtitle",
+        format: (v) => formatDisplay("show-delta", v),
+      },
+      {
+        key: "show-trend-arrows",
+        property: "subtitle",
+        format: (v) => formatDisplay("show-trend-arrows", v),
+      },
+      {
+        key: "show-elapsed-time",
+        property: "subtitle",
+        format: (v) => formatDisplay("show-elapsed-time", v),
+      },
+      {
+        key: "show-stale-elapsed-time",
+        property: "subtitle",
+        format: (v) => formatDisplay("show-stale-elapsed-time", v),
+      },
+      {
+        key: "notification-out-of-range",
+        property: "subtitle",
+        format: (v) => formatDisplay("notification-out-of-range", v),
+      },
+      {
+        key: "notification-stale-data",
+        property: "subtitle",
+        format: (v) => formatDisplay("notification-stale-data", v),
+      },
+      {
+        key: "notification-rapidly-changes",
+        property: "subtitle",
+        format: (v) => formatDisplay("notification-rapidly-changes", v),
+      },
+      {
+        key: "notification-urgency-level",
+        property: "subtitle",
+        format: (v) => formatDisplay("notification-urgency-level", v),
+      },
     ];
 
     bindableSettings.forEach(({ key, property, format }) => {
       // Get initial value and create row
       let value;
-      if (key.includes("interval") || key.includes("timeout") || key.includes("threshold") || key.includes("urgency")) {
+      if (
+        key.includes("interval") ||
+        key.includes("timeout") ||
+        key.includes("threshold") ||
+        key.includes("urgency")
+      ) {
         value = settings.get_int(key);
       } else if (key.includes("show-") || key.includes("notification-")) {
         value = settings.get_boolean(key);
@@ -676,7 +757,10 @@ export default class NightscoutPreferences extends ExtensionPreferences {
         value = settings.get_string(key);
       }
 
-      const title = key.split("-").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+      const title = key
+        .split("-")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" ");
       const row = new Adw.ActionRow({
         title: title,
         subtitle: format(value),
@@ -688,7 +772,12 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       const settingsObject = {
         get: () => {
           let val;
-          if (key.includes("interval") || key.includes("timeout") || key.includes("threshold") || key.includes("urgency")) {
+          if (
+            key.includes("interval") ||
+            key.includes("timeout") ||
+            key.includes("threshold") ||
+            key.includes("urgency")
+          ) {
             val = settings.get_int(key);
           } else if (key.includes("show-") || key.includes("notification-")) {
             val = settings.get_boolean(key);
@@ -697,7 +786,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
           }
           return format(val);
         },
-        set: () => {} // Read-only for display
+        set: () => {}, // Read-only for display
       };
 
       // Connect to changes
@@ -713,20 +802,69 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     let rowIndex = 0;
 
     const settingsData = [
-      { key: "nightscout-url", type: "string", format: (v) => v || _("Not set") },
-      { key: "authentication-token", type: "string", format: (v) => v ? `${v.substring(0, 4)}***` : _("Not set") },
-      { key: "refresh-interval", type: "int", format: (v) => _(`${v} seconds`) },
+      {
+        key: "nightscout-url",
+        type: "string",
+        format: (v) => v || _("Not set"),
+      },
+      {
+        key: "authentication-token",
+        type: "string",
+        format: (v) => (v ? `${v.substring(0, 4)}***` : _("Not set")),
+      },
+      {
+        key: "refresh-interval",
+        type: "int",
+        format: (v) => _(`${v} seconds`),
+      },
       { key: "timeout-time", type: "int", format: (v) => _(`${v} seconds`) },
-      { key: "stale-data-threshold", type: "int", format: (v) => _(`${v} minutes`) },
+      {
+        key: "stale-data-threshold",
+        type: "int",
+        format: (v) => _(`${v} minutes`),
+      },
       { key: "units-selection", type: "string", format: (v) => v },
-      { key: "show-delta", type: "boolean", format: (v) => v ? _("Enabled") : _("Disabled") },
-      { key: "show-trend-arrows", type: "boolean", format: (v) => v ? _("Enabled") : _("Disabled") },
-      { key: "show-elapsed-time", type: "boolean", format: (v) => v ? _("Enabled") : _("Disabled") },
-      { key: "show-stale-elapsed-time", type: "boolean", format: (v) => v ? _("Enabled") : _("Disabled") },
-      { key: "notification-out-of-range", type: "boolean", format: (v) => v ? _("Enabled") : _("Disabled") },
-      { key: "notification-stale-data", type: "boolean", format: (v) => v ? _("Enabled") : _("Disabled") },
-      { key: "notification-rapidly-changes", type: "boolean", format: (v) => v ? _("Enabled") : _("Disabled") },
-      { key: "notification-urgency-level", type: "int", format: (v) => [_("Low"), _("Normal"), _("High"), _("Critical")][v] || _("Unknown") },
+      {
+        key: "show-delta",
+        type: "boolean",
+        format: (v) => (v ? _("Enabled") : _("Disabled")),
+      },
+      {
+        key: "show-trend-arrows",
+        type: "boolean",
+        format: (v) => (v ? _("Enabled") : _("Disabled")),
+      },
+      {
+        key: "show-elapsed-time",
+        type: "boolean",
+        format: (v) => (v ? _("Enabled") : _("Disabled")),
+      },
+      {
+        key: "show-stale-elapsed-time",
+        type: "boolean",
+        format: (v) => (v ? _("Enabled") : _("Disabled")),
+      },
+      {
+        key: "notification-out-of-range",
+        type: "boolean",
+        format: (v) => (v ? _("Enabled") : _("Disabled")),
+      },
+      {
+        key: "notification-stale-data",
+        type: "boolean",
+        format: (v) => (v ? _("Enabled") : _("Disabled")),
+      },
+      {
+        key: "notification-rapidly-changes",
+        type: "boolean",
+        format: (v) => (v ? _("Enabled") : _("Disabled")),
+      },
+      {
+        key: "notification-urgency-level",
+        type: "int",
+        format: (v) =>
+          [_("Low"), _("Normal"), _("High"), _("Critical")][v] || _("Unknown"),
+      },
     ];
 
     while (child && rowIndex < settingsData.length) {
@@ -758,11 +896,15 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     const showDelta = settings.get_boolean("show-delta");
     const showTrendArrows = settings.get_boolean("show-trend-arrows");
     const showElapsedTime = settings.get_boolean("show-elapsed-time");
-    const showStaleElapsedTime = settings.get_boolean("show-stale-elapsed-time");
+    const showStaleElapsedTime = settings.get_boolean(
+      "show-stale-elapsed-time",
+    );
 
     const notifOutOfRange = settings.get_boolean("notification-out-of-range");
     const notifStaleData = settings.get_boolean("notification-stale-data");
-    const notifRapidChanges = settings.get_boolean("notification-rapidly-changes");
+    const notifRapidChanges = settings.get_boolean(
+      "notification-rapidly-changes",
+    );
     const notifUrgency = settings.get_int("notification-urgency-level");
 
     // Get relevant server data that's displayed in the debug tab
@@ -794,8 +936,11 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     let computedValues = {};
     if (window._lastServerData && window._lastServerData.settings) {
       const serverSettings = window._lastServerData.settings;
-      const serverUnits = ["mmol", "mmol/L"].includes(serverSettings.units) ? "mmol/L" : "mg/dl";
-      const effectiveUnits = unitsSelection === "auto" ? serverUnits : unitsSelection;
+      const serverUnits = ["mmol", "mmol/L"].includes(serverSettings.units)
+        ? "mmol/L"
+        : "mg/dl";
+      const effectiveUnits =
+        unitsSelection === "auto" ? serverUnits : unitsSelection;
 
       computedValues = {
         effectiveUnits,
@@ -805,21 +950,41 @@ export default class NightscoutPreferences extends ExtensionPreferences {
 
       if (serverSettings.thresholds) {
         const thresholds = serverSettings.thresholds;
-        const conversionFactor = effectiveUnits === "mmol/L" && serverUnits === "mg/dl" ? 0.0555 :
-                                effectiveUnits === "mg/dl" && serverUnits === "mmol/L" ? 1 / 0.0555 : 1;
+        const conversionFactor =
+          effectiveUnits === "mmol/L" && serverUnits === "mg/dl"
+            ? 0.0555
+            : effectiveUnits === "mg/dl" && serverUnits === "mmol/L"
+              ? 1 / 0.0555
+              : 1;
 
         computedValues.thresholds = {
-          low: thresholds.bgLow !== undefined ? Math.round(thresholds.bgLow * conversionFactor * 10) / 10 : null,
-          targetBottom: thresholds.bgTargetBottom !== undefined ? Math.round(thresholds.bgTargetBottom * conversionFactor * 10) / 10 : null,
-          targetTop: thresholds.bgTargetTop !== undefined ? Math.round(thresholds.bgTargetTop * conversionFactor * 10) / 10 : null,
-          high: thresholds.bgHigh !== undefined ? Math.round(thresholds.bgHigh * conversionFactor * 10) / 10 : null,
+          low:
+            thresholds.bgLow !== undefined
+              ? Math.round(thresholds.bgLow * conversionFactor * 10) / 10
+              : null,
+          targetBottom:
+            thresholds.bgTargetBottom !== undefined
+              ? Math.round(thresholds.bgTargetBottom * conversionFactor * 10) /
+                10
+              : null,
+          targetTop:
+            thresholds.bgTargetTop !== undefined
+              ? Math.round(thresholds.bgTargetTop * conversionFactor * 10) / 10
+              : null,
+          high:
+            thresholds.bgHigh !== undefined
+              ? Math.round(thresholds.bgHigh * conversionFactor * 10) / 10
+              : null,
         };
       }
     }
 
     const allDebugInfo = {
       timestamp: new Date().toISOString(),
-      extensionVersion: this.metadata.version || "Unknown",
+      extensionVersion:
+        this._extensionMetadata["version-name"] ||
+        this._extensionMetadata.version ||
+        "Unknown",
       localSettings: {
         connection: {
           nightscoutUrl: "[REDACTED]",
@@ -859,9 +1024,12 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     };
 
     const serverSettings = serverData.settings || {};
-    const serverUnits = ["mmol", "mmol/L"].includes(serverSettings.units) ? "mmol/L" : "mg/dl";
+    const serverUnits = ["mmol", "mmol/L"].includes(serverSettings.units)
+      ? "mmol/L"
+      : "mg/dl";
     const unitsSelection = settings.get_string("units-selection");
-    const effectiveUnits = unitsSelection === "auto" ? serverUnits : unitsSelection;
+    const effectiveUnits =
+      unitsSelection === "auto" ? serverUnits : unitsSelection;
 
     // Effective units
     const effectiveUnitsRow = new Adw.ActionRow({
@@ -874,12 +1042,19 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     // Computed thresholds
     if (serverSettings.thresholds) {
       const thresholds = serverSettings.thresholds;
-      const conversionFactor = effectiveUnits === "mmol/L" && serverUnits === "mg/dl" ? 0.0555 :
-                              effectiveUnits === "mg/dl" && serverUnits === "mmol/L" ? 1 / 0.0555 : 1;
+      const conversionFactor =
+        effectiveUnits === "mmol/L" && serverUnits === "mg/dl"
+          ? 0.0555
+          : effectiveUnits === "mg/dl" && serverUnits === "mmol/L"
+            ? 1 / 0.0555
+            : 1;
 
       const computedValues = [
         { name: _("Computed Low"), server: thresholds.bgLow },
-        { name: _("Computed Target Bottom"), server: thresholds.bgTargetBottom },
+        {
+          name: _("Computed Target Bottom"),
+          server: thresholds.bgTargetBottom,
+        },
         { name: _("Computed Target Top"), server: thresholds.bgTargetTop },
         { name: _("Computed High"), server: thresholds.bgHigh },
       ];
@@ -908,5 +1083,15 @@ export default class NightscoutPreferences extends ExtensionPreferences {
 
     // Redisplay computed values with updated settings
     this._displayComputedValues(serverData, settings, group);
+  }
+
+  _is24HourFormat() {
+    // Get the user's time format preference
+    const settings = new Gio.Settings({
+      schema: "org.gnome.desktop.interface",
+    });
+
+    const clockFormat = settings.get_string("clock-format");
+    return clockFormat === "24h";
   }
 }
