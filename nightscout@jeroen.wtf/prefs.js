@@ -362,6 +362,11 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       this._refreshDebugInfo(window._settings, window._debugElements);
     });
 
+    // Connect to settings changes for real-time debug updates
+    window._settingsHandler = window._settings.connect("changed", () => {
+      this._updateDebugInfo(window._settings, window._debugElements);
+    });
+
     // Initial debug info load
     this._fetchServerConfigForDebug(window._settings, window._debugElements);
     this._displayLocalSettings(window._settings, localSettingsGroup);
@@ -420,7 +425,19 @@ export default class NightscoutPreferences extends ExtensionPreferences {
 
     // Fetch server configuration and local settings
     this._fetchServerConfigForDebug(settings, debugElements);
-    this._displayLocalSettings(settings, localSettingsGroup);
+    this._updateLocalSettings(settings, localSettingsGroup);
+  }
+
+  _updateDebugInfo(settings, debugElements) {
+    const { localSettingsGroup, computedValuesGroup } = debugElements;
+
+    // Update local settings display
+    this._updateLocalSettings(settings, localSettingsGroup);
+
+    // Update computed values if server data is available
+    if (window._lastServerData) {
+      this._updateComputedValues(window._lastServerData, settings, computedValuesGroup);
+    }
   }
 
   async _fetchServerConfigForDebug(settings, debugElements) {
@@ -583,118 +600,151 @@ export default class NightscoutPreferences extends ExtensionPreferences {
   }
 
   _displayLocalSettings(settings, group) {
-    const nightscoutUrl = settings.get_string("nightscout-url");
+    // Store group reference for updates
+    window._debugSettingsGroup = group;
+
+    // Create helper function to format display values
+    const formatDisplay = (key, value) => {
+      switch (key) {
+        case "nightscout-url":
+          return value || _("Not set");
+        case "authentication-token":
+          return value ? `${value.substring(0, 4)}***` : _("Not set");
+        case "refresh-interval":
+        case "timeout-time":
+          return _(`${value} seconds`);
+        case "stale-data-threshold":
+          return _(`${value} minutes`);
+        case "notification-urgency-level":
+          const urgencyLevels = [_("Low"), _("Normal"), _("High"), _("Critical")];
+          return urgencyLevels[value] || _("Unknown");
+        default:
+          return typeof value === "boolean" ? (value ? _("Enabled") : _("Disabled")) : value;
+      }
+    };
+
+    // URL - we can't bind directly since we need special formatting
     const urlRow = new Adw.ActionRow({
       title: _("Nightscout URL"),
-      subtitle: nightscoutUrl || _("Not set"),
+      subtitle: formatDisplay("nightscout-url", settings.get_string("nightscout-url")),
     });
     urlRow.add_css_class("property");
     group.add(urlRow);
 
-    const authToken = settings.get_string("authentication-token");
+    // Listen for URL changes
+    settings.connect("changed::nightscout-url", () => {
+      urlRow.subtitle = formatDisplay("nightscout-url", settings.get_string("nightscout-url"));
+    });
+
+    // Auth token - special formatting
     const tokenRow = new Adw.ActionRow({
       title: _("Authentication Token"),
-      subtitle: authToken ? `${authToken.substring(0, 4)}***` : _("Not set"),
+      subtitle: formatDisplay("authentication-token", settings.get_string("authentication-token")),
     });
     tokenRow.add_css_class("property");
     group.add(tokenRow);
 
-    const refreshInterval = settings.get_int("refresh-interval");
-    const refreshRow = new Adw.ActionRow({
-      title: _("Refresh Interval"),
-      subtitle: _(`${refreshInterval} seconds`),
+    // Listen for auth token changes
+    settings.connect("changed::authentication-token", () => {
+      tokenRow.subtitle = formatDisplay("authentication-token", settings.get_string("authentication-token"));
     });
-    refreshRow.add_css_class("property");
-    group.add(refreshRow);
 
-    const timeout = settings.get_int("timeout-time");
-    const timeoutRow = new Adw.ActionRow({
-      title: _("Request Timeout"),
-      subtitle: _(`${timeout} seconds`),
-    });
-    timeoutRow.add_css_class("property");
-    group.add(timeoutRow);
+    // Bind settings that can be directly mapped
+    const bindableSettings = [
+      { key: "refresh-interval", property: "subtitle", format: (v) => formatDisplay("refresh-interval", v) },
+      { key: "timeout-time", property: "subtitle", format: (v) => formatDisplay("timeout-time", v) },
+      { key: "stale-data-threshold", property: "subtitle", format: (v) => formatDisplay("stale-data-threshold", v) },
+      { key: "units-selection", property: "subtitle", format: (v) => v },
+      { key: "show-delta", property: "subtitle", format: (v) => formatDisplay("show-delta", v) },
+      { key: "show-trend-arrows", property: "subtitle", format: (v) => formatDisplay("show-trend-arrows", v) },
+      { key: "show-elapsed-time", property: "subtitle", format: (v) => formatDisplay("show-elapsed-time", v) },
+      { key: "show-stale-elapsed-time", property: "subtitle", format: (v) => formatDisplay("show-stale-elapsed-time", v) },
+      { key: "notification-out-of-range", property: "subtitle", format: (v) => formatDisplay("notification-out-of-range", v) },
+      { key: "notification-stale-data", property: "subtitle", format: (v) => formatDisplay("notification-stale-data", v) },
+      { key: "notification-rapidly-changes", property: "subtitle", format: (v) => formatDisplay("notification-rapidly-changes", v) },
+      { key: "notification-urgency-level", property: "subtitle", format: (v) => formatDisplay("notification-urgency-level", v) },
+    ];
 
-    const staleThreshold = settings.get_int("stale-data-threshold");
-    const staleRow = new Adw.ActionRow({
-      title: _("Stale Data Threshold"),
-      subtitle: _(`${staleThreshold} minutes`),
-    });
-    staleRow.add_css_class("property");
-    group.add(staleRow);
+    bindableSettings.forEach(({ key, property, format }) => {
+      // Get initial value and create row
+      let value;
+      if (key.includes("interval") || key.includes("timeout") || key.includes("threshold") || key.includes("urgency")) {
+        value = settings.get_int(key);
+      } else if (key.includes("show-") || key.includes("notification-")) {
+        value = settings.get_boolean(key);
+      } else {
+        value = settings.get_string(key);
+      }
 
-    const unitsSelection = settings.get_string("units-selection");
-    const unitsRow = new Adw.ActionRow({
-      title: _("Units Selection"),
-      subtitle: unitsSelection,
-    });
-    unitsRow.add_css_class("property");
-    group.add(unitsRow);
+      const title = key.split("-").map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(" ");
+      const row = new Adw.ActionRow({
+        title: title,
+        subtitle: format(value),
+      });
+      row.add_css_class("property");
+      group.add(row);
 
-    const showDelta = settings.get_boolean("show-delta");
-    const deltaRow = new Adw.ActionRow({
-      title: _("Show Delta"),
-      subtitle: showDelta ? _("Enabled") : _("Disabled"),
-    });
-    deltaRow.add_css_class("property");
-    group.add(deltaRow);
+      // Create a wrapper to handle the formatting
+      const settingsObject = {
+        get: () => {
+          let val;
+          if (key.includes("interval") || key.includes("timeout") || key.includes("threshold") || key.includes("urgency")) {
+            val = settings.get_int(key);
+          } else if (key.includes("show-") || key.includes("notification-")) {
+            val = settings.get_boolean(key);
+          } else {
+            val = settings.get_string(key);
+          }
+          return format(val);
+        },
+        set: () => {} // Read-only for display
+      };
 
-    const showTrendArrows = settings.get_boolean("show-trend-arrows");
-    const trendRow = new Adw.ActionRow({
-      title: _("Show Trend Arrows"),
-      subtitle: showTrendArrows ? _("Enabled") : _("Disabled"),
+      // Connect to changes
+      settings.connect(`changed::${key}`, () => {
+        row[property] = settingsObject.get();
+      });
     });
-    trendRow.add_css_class("property");
-    group.add(trendRow);
+  }
 
-    const showElapsedTime = settings.get_boolean("show-elapsed-time");
-    const elapsedRow = new Adw.ActionRow({
-      title: _("Show Elapsed Time"),
-      subtitle: showElapsedTime ? _("Enabled") : _("Disabled"),
-    });
-    elapsedRow.add_css_class("property");
-    group.add(elapsedRow);
+  _updateLocalSettings(settings, group) {
+    // Find and update existing rows
+    let child = group.get_first_child();
+    let rowIndex = 0;
 
-    const showStaleElapsedTime = settings.get_boolean("show-stale-elapsed-time");
-    const staleElapsedRow = new Adw.ActionRow({
-      title: _("Show Stale Elapsed Time"),
-      subtitle: showStaleElapsedTime ? _("Enabled") : _("Disabled"),
-    });
-    staleElapsedRow.add_css_class("property");
-    group.add(staleElapsedRow);
+    const settingsData = [
+      { key: "nightscout-url", type: "string", format: (v) => v || _("Not set") },
+      { key: "authentication-token", type: "string", format: (v) => v ? `${v.substring(0, 4)}***` : _("Not set") },
+      { key: "refresh-interval", type: "int", format: (v) => _(`${v} seconds`) },
+      { key: "timeout-time", type: "int", format: (v) => _(`${v} seconds`) },
+      { key: "stale-data-threshold", type: "int", format: (v) => _(`${v} minutes`) },
+      { key: "units-selection", type: "string", format: (v) => v },
+      { key: "show-delta", type: "boolean", format: (v) => v ? _("Enabled") : _("Disabled") },
+      { key: "show-trend-arrows", type: "boolean", format: (v) => v ? _("Enabled") : _("Disabled") },
+      { key: "show-elapsed-time", type: "boolean", format: (v) => v ? _("Enabled") : _("Disabled") },
+      { key: "show-stale-elapsed-time", type: "boolean", format: (v) => v ? _("Enabled") : _("Disabled") },
+      { key: "notification-out-of-range", type: "boolean", format: (v) => v ? _("Enabled") : _("Disabled") },
+      { key: "notification-stale-data", type: "boolean", format: (v) => v ? _("Enabled") : _("Disabled") },
+      { key: "notification-rapidly-changes", type: "boolean", format: (v) => v ? _("Enabled") : _("Disabled") },
+      { key: "notification-urgency-level", type: "int", format: (v) => [_("Low"), _("Normal"), _("High"), _("Critical")][v] || _("Unknown") },
+    ];
 
-    const notifOutOfRange = settings.get_boolean("notification-out-of-range");
-    const notifOutOfRangeRow = new Adw.ActionRow({
-      title: _("Out of Range Notifications"),
-      subtitle: notifOutOfRange ? _("Enabled") : _("Disabled"),
-    });
-    notifOutOfRangeRow.add_css_class("property");
-    group.add(notifOutOfRangeRow);
+    while (child && rowIndex < settingsData.length) {
+      const setting = settingsData[rowIndex];
+      let value;
 
-    const notifStaleData = settings.get_boolean("notification-stale-data");
-    const notifStaleDataRow = new Adw.ActionRow({
-      title: _("Stale Data Notifications"),
-      subtitle: notifStaleData ? _("Enabled") : _("Disabled"),
-    });
-    notifStaleDataRow.add_css_class("property");
-    group.add(notifStaleDataRow);
+      if (setting.type === "string") {
+        value = settings.get_string(setting.key);
+      } else if (setting.type === "int") {
+        value = settings.get_int(setting.key);
+      } else if (setting.type === "boolean") {
+        value = settings.get_boolean(setting.key);
+      }
 
-    const notifRapidChanges = settings.get_boolean("notification-rapidly-changes");
-    const notifRapidChangesRow = new Adw.ActionRow({
-      title: _("Rapid Changes Notifications"),
-      subtitle: notifRapidChanges ? _("Enabled") : _("Disabled"),
-    });
-    notifRapidChangesRow.add_css_class("property");
-    group.add(notifRapidChangesRow);
-
-    const notifUrgency = settings.get_int("notification-urgency-level");
-    const urgencyLevels = [_("Low"), _("Normal"), _("High"), _("Critical")];
-    const notifUrgencyRow = new Adw.ActionRow({
-      title: _("Notification Urgency"),
-      subtitle: urgencyLevels[notifUrgency] || _("Unknown"),
-    });
-    notifUrgencyRow.add_css_class("property");
-    group.add(notifUrgencyRow);
+      child.set_subtitle(setting.format(value));
+      child = child.get_next_sibling();
+      rowIndex++;
+    }
   }
 
   _copyAllDebugInfo(settings, debugElements) {
@@ -801,6 +851,13 @@ export default class NightscoutPreferences extends ExtensionPreferences {
   }
 
   _displayComputedValues(serverData, settings, group) {
+    // Store computed values data for updates
+    window._debugComputedData = {
+      serverData,
+      settings,
+      group,
+    };
+
     const serverSettings = serverData.settings || {};
     const serverUnits = ["mmol", "mmol/L"].includes(serverSettings.units) ? "mmol/L" : "mg/dl";
     const unitsSelection = settings.get_string("units-selection");
@@ -839,5 +896,17 @@ export default class NightscoutPreferences extends ExtensionPreferences {
         }
       });
     }
+  }
+
+  _updateComputedValues(serverData, settings, group) {
+    // Clear existing computed values
+    let child = group.get_first_child();
+    while (child) {
+      group.remove(child);
+      child = group.get_first_child();
+    }
+
+    // Redisplay computed values with updated settings
+    this._displayComputedValues(serverData, settings, group);
   }
 }
