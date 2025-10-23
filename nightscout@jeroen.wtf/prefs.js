@@ -499,6 +499,14 @@ export default class NightscoutPreferences extends ExtensionPreferences {
   }
 
   _displayServerConfig(serverData, group) {
+    // Extension version
+    const extensionVersion = new Adw.ActionRow({
+      title: _("Extension Version"),
+      subtitle: this.metadata.version || "Unknown",
+    });
+    extensionVersion.add_css_class("property");
+    group.add(extensionVersion);
+
     // Server version
     if (serverData.version) {
       const versionRow = new Adw.ActionRow({
@@ -527,15 +535,9 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       if (settings.thresholds) {
         const thresholds = settings.thresholds;
 
-        const thresholdsHeader = new Adw.ActionRow({
-          title: _("Server Thresholds"),
-          subtitle: _("Blood glucose thresholds from server"),
-        });
-        group.add(thresholdsHeader);
-
         if (thresholds.bgLow !== undefined) {
           const bgLowRow = new Adw.ActionRow({
-            title: _("Low Threshold"),
+            title: _("Server Low Threshold"),
             subtitle: thresholds.bgLow.toString(),
           });
           bgLowRow.add_css_class("property");
@@ -544,7 +546,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
 
         if (thresholds.bgTargetBottom !== undefined) {
           const bgTargetBottomRow = new Adw.ActionRow({
-            title: _("Target Bottom"),
+            title: _("Server Target Bottom"),
             subtitle: thresholds.bgTargetBottom.toString(),
           });
           bgTargetBottomRow.add_css_class("property");
@@ -553,7 +555,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
 
         if (thresholds.bgTargetTop !== undefined) {
           const bgTargetTopRow = new Adw.ActionRow({
-            title: _("Target Top"),
+            title: _("Server Target Top"),
             subtitle: thresholds.bgTargetTop.toString(),
           });
           bgTargetTopRow.add_css_class("property");
@@ -562,7 +564,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
 
         if (thresholds.bgHigh !== undefined) {
           const bgHighRow = new Adw.ActionRow({
-            title: _("High Threshold"),
+            title: _("Server High Threshold"),
             subtitle: thresholds.bgHigh.toString(),
           });
           bgHighRow.add_css_class("property");
@@ -581,12 +583,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
   }
 
   _displayLocalSettings(settings, group) {
-    // Connection settings
-    const connectionHeader = new Adw.ActionRow({
-      title: _("Connection Settings"),
-    });
-    group.add(connectionHeader);
-
     const nightscoutUrl = settings.get_string("nightscout-url");
     const urlRow = new Adw.ActionRow({
       title: _("Nightscout URL"),
@@ -627,12 +623,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     staleRow.add_css_class("property");
     group.add(staleRow);
 
-    // Display settings
-    const displayHeader = new Adw.ActionRow({
-      title: _("Display Settings"),
-    });
-    group.add(displayHeader);
-
     const unitsSelection = settings.get_string("units-selection");
     const unitsRow = new Adw.ActionRow({
       title: _("Units Selection"),
@@ -672,12 +662,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     });
     staleElapsedRow.add_css_class("property");
     group.add(staleElapsedRow);
-
-    // Notification settings
-    const notifHeader = new Adw.ActionRow({
-      title: _("Notification Settings"),
-    });
-    group.add(notifHeader);
 
     const notifOutOfRange = settings.get_boolean("notification-out-of-range");
     const notifOutOfRangeRow = new Adw.ActionRow({
@@ -731,6 +715,31 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     const notifRapidChanges = settings.get_boolean("notification-rapidly-changes");
     const notifUrgency = settings.get_int("notification-urgency-level");
 
+    // Get relevant server data that's displayed in the debug tab
+    let serverConfig = {
+      version: null,
+      units: null,
+      thresholds: null,
+    };
+
+    if (window._lastServerData) {
+      serverConfig.version = window._lastServerData.version || null;
+
+      if (window._lastServerData.settings) {
+        const serverSettings = window._lastServerData.settings;
+        serverConfig.units = serverSettings.units || null;
+
+        if (serverSettings.thresholds) {
+          serverConfig.thresholds = {
+            bgLow: serverSettings.thresholds.bgLow,
+            bgTargetBottom: serverSettings.thresholds.bgTargetBottom,
+            bgTargetTop: serverSettings.thresholds.bgTargetTop,
+            bgHigh: serverSettings.thresholds.bgHigh,
+          };
+        }
+      }
+    }
+
     // Get computed values if server data is available
     let computedValues = {};
     if (window._lastServerData && window._lastServerData.settings) {
@@ -755,18 +764,12 @@ export default class NightscoutPreferences extends ExtensionPreferences {
           targetTop: thresholds.bgTargetTop !== undefined ? Math.round(thresholds.bgTargetTop * conversionFactor * 10) / 10 : null,
           high: thresholds.bgHigh !== undefined ? Math.round(thresholds.bgHigh * conversionFactor * 10) / 10 : null,
         };
-
-        computedValues.serverThresholds = {
-          low: thresholds.bgLow,
-          targetBottom: thresholds.bgTargetBottom,
-          targetTop: thresholds.bgTargetTop,
-          high: thresholds.bgHigh,
-        };
       }
     }
 
     const allDebugInfo = {
       timestamp: new Date().toISOString(),
+      extensionVersion: this.metadata.version || "Unknown",
       localSettings: {
         connection: {
           nightscoutUrl: "[REDACTED]",
@@ -789,7 +792,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
           urgency: notifUrgency,
         },
       },
-      serverConfiguration: window._lastServerData || "No server data available",
+      serverConfiguration: serverConfig,
       computedValues,
     };
 
@@ -817,17 +820,11 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       const conversionFactor = effectiveUnits === "mmol/L" && serverUnits === "mg/dl" ? 0.0555 :
                               effectiveUnits === "mg/dl" && serverUnits === "mmol/L" ? 1 / 0.0555 : 1;
 
-      const computedHeader = new Adw.ActionRow({
-        title: _("Computed Thresholds"),
-        subtitle: _("Thresholds converted to effective units"),
-      });
-      group.add(computedHeader);
-
       const computedValues = [
-        { name: _("Low"), server: thresholds.bgLow },
-        { name: _("Target Bottom"), server: thresholds.bgTargetBottom },
-        { name: _("Target Top"), server: thresholds.bgTargetTop },
-        { name: _("High"), server: thresholds.bgHigh },
+        { name: _("Computed Low"), server: thresholds.bgLow },
+        { name: _("Computed Target Bottom"), server: thresholds.bgTargetBottom },
+        { name: _("Computed Target Top"), server: thresholds.bgTargetTop },
+        { name: _("Computed High"), server: thresholds.bgHigh },
       ];
 
       computedValues.forEach(({ name, server }) => {
