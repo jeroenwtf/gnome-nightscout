@@ -296,6 +296,18 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     });
     debugPage.add(debugActionsGroup);
 
+    const copyDebugRow = new Adw.ActionRow({
+      title: _("Copy all debug information"),
+      subtitle: _("Copy server config, local settings, and computed values to clipboard"),
+    });
+    debugActionsGroup.add(copyDebugRow);
+
+    const copyDebugButton = new Gtk.Button({
+      label: _("Copy"),
+      valign: Gtk.Align.CENTER,
+    });
+    copyDebugRow.add_suffix(copyDebugButton);
+
     const refreshDebugRow = new Adw.ActionRow({
       title: _("Refresh debug information"),
       subtitle: _("Fetch latest server configuration and update debug info"),
@@ -339,6 +351,11 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       localSettingsGroup,
       computedValuesGroup,
     };
+
+    // Connect copy button
+    copyDebugButton.connect("clicked", () => {
+      this._copyAllDebugInfo(window._settings, window._debugElements);
+    });
 
     // Connect refresh button
     refreshDebugButton.connect("clicked", () => {
@@ -414,6 +431,9 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       serverConfigGroup.add(serverStatusRow);
     }
 
+    // Store reference to debug elements for copying
+    window._lastServerData = null;
+
     const nightscoutUrl = settings.get_string("nightscout-url");
     const authToken = settings.get_string("authentication-token");
 
@@ -457,6 +477,9 @@ export default class NightscoutPreferences extends ExtensionPreferences {
 
       serverStatusRow.set_title(_("Connected"));
       serverStatusRow.set_subtitle(_("Successfully fetched server configuration"));
+
+      // Store server data for copying
+      window._lastServerData = response;
 
       this._displayServerConfig(response, serverConfigGroup);
       this._displayComputedValues(response, settings, computedValuesGroup);
@@ -548,23 +571,13 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       }
     }
 
-    // Add raw server data as action row (since we need a button)
+    // Add raw server data as property row
     const rawDataRow = new Adw.ActionRow({
       title: _("Raw Server Data"),
       subtitle: _("Complete server response"),
     });
+    rawDataRow.add_css_class("property");
     group.add(rawDataRow);
-
-    const copyButton = new Gtk.Button({
-      label: _("Copy"),
-      valign: Gtk.Align.CENTER,
-    });
-    rawDataRow.add_suffix(copyButton);
-
-    copyButton.connect("clicked", () => {
-      const clipboard = Gdk.Display.get_default().get_clipboard();
-      clipboard.set(JSON.stringify(serverData, null, 2));
-    });
   }
 
   _displayLocalSettings(settings, group) {
@@ -698,25 +711,66 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     });
     notifUrgencyRow.add_css_class("property");
     group.add(notifUrgencyRow);
+  }
 
-    // Copy settings button
-    const copySettingsRow = new Adw.ActionRow({
-      title: _("Export Settings"),
-      subtitle: _("Copy all settings to clipboard for bug reports"),
-    });
-    group.add(copySettingsRow);
+  _copyAllDebugInfo(settings, debugElements) {
+    const nightscoutUrl = settings.get_string("nightscout-url");
+    const authToken = settings.get_string("authentication-token");
+    const refreshInterval = settings.get_int("refresh-interval");
+    const timeout = settings.get_int("timeout-time");
+    const staleThreshold = settings.get_int("stale-data-threshold");
 
-    const copySettingsButton = new Gtk.Button({
-      label: _("Copy"),
-      valign: Gtk.Align.CENTER,
-    });
-    copySettingsRow.add_suffix(copySettingsButton);
+    const unitsSelection = settings.get_string("units-selection");
+    const showDelta = settings.get_boolean("show-delta");
+    const showTrendArrows = settings.get_boolean("show-trend-arrows");
+    const showElapsedTime = settings.get_boolean("show-elapsed-time");
+    const showStaleElapsedTime = settings.get_boolean("show-stale-elapsed-time");
 
-    copySettingsButton.connect("clicked", () => {
-      const allSettings = {
+    const notifOutOfRange = settings.get_boolean("notification-out-of-range");
+    const notifStaleData = settings.get_boolean("notification-stale-data");
+    const notifRapidChanges = settings.get_boolean("notification-rapidly-changes");
+    const notifUrgency = settings.get_int("notification-urgency-level");
+
+    // Get computed values if server data is available
+    let computedValues = {};
+    if (window._lastServerData && window._lastServerData.settings) {
+      const serverSettings = window._lastServerData.settings;
+      const serverUnits = ["mmol", "mmol/L"].includes(serverSettings.units) ? "mmol/L" : "mg/dl";
+      const effectiveUnits = unitsSelection === "auto" ? serverUnits : unitsSelection;
+
+      computedValues = {
+        effectiveUnits,
+        serverUnits,
+        unitsSelection,
+      };
+
+      if (serverSettings.thresholds) {
+        const thresholds = serverSettings.thresholds;
+        const conversionFactor = effectiveUnits === "mmol/L" && serverUnits === "mg/dl" ? 0.0555 :
+                                effectiveUnits === "mg/dl" && serverUnits === "mmol/L" ? 1 / 0.0555 : 1;
+
+        computedValues.thresholds = {
+          low: thresholds.bgLow !== undefined ? Math.round(thresholds.bgLow * conversionFactor * 10) / 10 : null,
+          targetBottom: thresholds.bgTargetBottom !== undefined ? Math.round(thresholds.bgTargetBottom * conversionFactor * 10) / 10 : null,
+          targetTop: thresholds.bgTargetTop !== undefined ? Math.round(thresholds.bgTargetTop * conversionFactor * 10) / 10 : null,
+          high: thresholds.bgHigh !== undefined ? Math.round(thresholds.bgHigh * conversionFactor * 10) / 10 : null,
+        };
+
+        computedValues.serverThresholds = {
+          low: thresholds.bgLow,
+          targetBottom: thresholds.bgTargetBottom,
+          targetTop: thresholds.bgTargetTop,
+          high: thresholds.bgHigh,
+        };
+      }
+    }
+
+    const allDebugInfo = {
+      timestamp: new Date().toISOString(),
+      localSettings: {
         connection: {
-          nightscoutUrl,
-          authToken: authToken ? `${authToken.substring(0, 4)}***` : null,
+          nightscoutUrl: "[REDACTED]",
+          authToken: authToken ? "[REDACTED]" : null,
           refreshInterval,
           timeout,
           staleThreshold,
@@ -734,11 +788,13 @@ export default class NightscoutPreferences extends ExtensionPreferences {
           rapidChanges: notifRapidChanges,
           urgency: notifUrgency,
         },
-      };
+      },
+      serverConfiguration: window._lastServerData || "No server data available",
+      computedValues,
+    };
 
-      const clipboard = Gdk.Display.get_default().get_clipboard();
-      clipboard.set(JSON.stringify(allSettings, null, 2));
-    });
+    const clipboard = Gdk.Display.get_default().get_clipboard();
+    clipboard.set(JSON.stringify(allDebugInfo, null, 2));
   }
 
   _displayComputedValues(serverData, settings, group) {
