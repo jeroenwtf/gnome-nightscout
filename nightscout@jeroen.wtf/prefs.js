@@ -13,10 +13,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
   constructor(metadata) {
     super(metadata);
 
-    // Store metadata for access in methods
     this._extensionMetadata = metadata;
-
-    console.debug(`constructing ${this.metadata.name}`);
   }
 
   fillPreferencesWindow(window) {
@@ -294,37 +291,41 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     });
     window.add(debugPage);
 
-    const headerGroup = new Adw.PreferencesGroup();
-    debugPage.add(headerGroup);
-
-    const introRow = new Adw.ActionRow({
-      title: _(
+    const headerGroup = new Adw.PreferencesGroup({
+      title: _("What is this screen?"),
+      description: _(
         "Use this data to report any problem with the extension. You can attach the info copied with the button below.",
       ),
     });
-    headerGroup.add(introRow);
-
-    const githubIssuesButton = new Gtk.Button({
-      label: _("Go to GitHub issues"),
-      valign: Gtk.Align.CENTER,
-    });
-    introRow.add_suffix(githubIssuesButton);
+    debugPage.add(headerGroup);
 
     const extensionVersion =
       this._extensionMetadata["version-name"] ||
       this._extensionMetadata.version ||
       "Unknown";
-    const copyDebugRow = new Adw.ActionRow({
-      title: `${_("Extension Version")}: ${extensionVersion}`,
-      subtitle: _("You can copy this debugging info to share it easily."),
-    });
-    headerGroup.add(copyDebugRow);
 
-    const copyDebugButton = new Gtk.Button({
-      label: _("Copy debug info"),
-      valign: Gtk.Align.CENTER,
+    // Extension version row
+    const versionRow = new Adw.ActionRow({
+      title: `${_("Extension Version")}: ${extensionVersion}`,
     });
-    copyDebugRow.add_suffix(copyDebugButton);
+    headerGroup.add(versionRow);
+
+    const githubIssuesButton = new Gtk.LinkButton({
+      label: _("Go to GitHub issues"),
+      valign: Gtk.Align.CENTER,
+      uri: "https://github.com/jeroenwtf/gnome-nightscout/issues",
+    });
+    versionRow.add_suffix(githubIssuesButton);
+
+    // Copy debug info ButtonRow
+    const copyDebugButtonRow = new Adw.ButtonRow({
+      title: _("Copy debug info"),
+      start_icon_name: "edit-copy-symbolic",
+    });
+    headerGroup.add(copyDebugButtonRow);
+    copyDebugButtonRow.connect("activated", () => {
+      this._copyAllDebugInfo(window._settings, window._debugElements);
+    });
 
     // Server configuration group
     const serverConfigGroup = new Adw.PreferencesGroup({
@@ -336,13 +337,13 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     // Server status row
     const serverStatusRow = new Adw.ActionRow({
       title: _("Server Status"),
-      subtitle: _("Click 'Fetch server configuration' to connect"),
+      subtitle: _("Click 'Fetch server config' to connect"),
     });
     serverConfigGroup.add(serverStatusRow);
 
     // Add refresh button to server status row
     const refreshDebugButton = new Gtk.Button({
-      label: _("Fetch server configuration"),
+      label: _("Fetch server config"),
       valign: Gtk.Align.CENTER,
     });
     serverStatusRow.add_suffix(refreshDebugButton);
@@ -467,11 +468,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       this._refreshDebugInfo(window._settings, window._debugElements);
     });
 
-    // Connect copy button
-    copyDebugButton.connect("clicked", () => {
-      this._copyAllDebugInfo(window._settings, window._debugElements);
-    });
-
     // Connect to settings changes for real-time debug updates
     window._settingsHandler = window._settings.connect("changed", () => {
       this._updateDebugInfo(window._settings, window._debugElements);
@@ -552,11 +548,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
 
     // Update computed values if server data is available
     if (window._lastServerData) {
-      this._updateComputedValues(
-        window._lastServerData,
-        settings,
-        computedValuesGroup,
-      );
+      this._updateComputedValues(window._lastServerData, settings);
     }
   }
 
@@ -608,12 +600,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
 
       const decoder = new TextDecoder("utf-8");
       const response = JSON.parse(decoder.decode(bytes.get_data()));
-
-      const currentTime = new Date().toLocaleTimeString([], {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: this._is24HourFormat() === false,
-      });
 
       // Update server status row that will be recreated in _displayServerConfig
       // The refresh button will be added there as well
@@ -1196,7 +1182,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     }
   }
 
-  _updateComputedValues(serverData, settings, group) {
+  _updateComputedValues(serverData, settings) {
     // Update existing computed values with updated settings
     this._displayComputedValues(serverData, settings, window._debugElements);
   }
