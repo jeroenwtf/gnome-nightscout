@@ -412,13 +412,16 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     // Server status row
     const serverStatusRow = new Adw.ActionRow({
       title: _("Server Status"),
-      subtitle: _("Click to fetch server configuration"),
+      subtitle: _("Click 'Fetch server config' to connect"),
     });
     serverConfigGroup.add(serverStatusRow);
-    serverStatusRow.set_activatable(true);
-    serverStatusRow.connect("activated", () => {
-      this._refreshDebugInfo(window._settings, window._debugElements);
+
+    // Add refresh button to server status row
+    const refreshDebugButton = new Gtk.Button({
+      label: _("Fetch server config"),
+      valign: Gtk.Align.CENTER,
     });
+    serverStatusRow.add_suffix(refreshDebugButton);
 
     // Server version row
     const serverVersionRow = this._createRow(
@@ -535,6 +538,11 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       computedHighRow,
     };
 
+    // Connect refresh button
+    refreshDebugButton.connect("clicked", () => {
+      this._refreshDebugInfo(window._settings, window._debugElements);
+    });
+
     // Connect to settings changes for real-time debug updates
     window._settingsHandler = window._settings.connect("changed", () => {
       this._updateDebugInfo(window._settings, window._debugElements);
@@ -545,16 +553,13 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     this._displayLocalSettings(window._settings, localSettingsGroup);
   }
 
-  _checkServerStatus(settings, statusLabel) {
+  async _fetchServerStatus(settings) {
     const nightscoutUrl = settings.get_string("nightscout-url");
     const authToken = settings.get_string("authentication-token");
 
     if (!nightscoutUrl) {
-      statusLabel.set_title(_("Error: Nightscout URL not set"));
-      return;
+      throw new Error(_("Nightscout URL not set"));
     }
-
-    statusLabel.set_title(_("Checking..."));
 
     const session = new Soup.Session();
     const message = Soup.Message.new("GET", `${nightscoutUrl}/api/v1/status`);
@@ -564,29 +569,45 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       message.request_headers.append("API-SECRET", authToken);
     }
 
-    try {
+    const bytes = await new Promise((resolve, reject) => {
       session.send_and_read_async(message, null, null, (session, result) => {
-        if (message.status_code == Soup.Status.UNAUTHORIZED) {
-          statusLabel.set_title(
-            _(`Error: Unauthorized. Check your authentication token.`),
-          );
-          throw new Error(`HTTP error! status: ${message.status_code}`);
-        }
+        try {
+          if (message.status_code == Soup.Status.UNAUTHORIZED) {
+            reject(new Error("Unauthorized. Check your authentication token."));
+            return;
+          }
 
-        if (message.status_code !== Soup.Status.OK) {
-          statusLabel.set_title(_(`Error: Check if the url is correct.`));
-          throw new Error(`HTTP error! status: ${message.status_code}`);
-        }
+          if (message.status_code !== Soup.Status.OK) {
+            reject(new Error(`HTTP error! status: ${message.status_code}`));
+            return;
+          }
 
-        const bytes = session.send_and_read_finish(result);
-        const response = JSON.parse(bytes.get_data().toString());
+          resolve(session.send_and_read_finish(result));
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+
+    return JSON.parse(bytes.get_data().toString());
+  }
+
+  _checkServerStatus(settings, statusLabel) {
+    statusLabel.set_title(_("Checking..."));
+
+    this._fetchServerStatus(settings)
+      .then((response) => {
         const version = response.version;
         statusLabel.set_title(_(`Success! Version: ${version}`));
+      })
+      .catch((error) => {
+        console.log(error);
+        if (error.message.includes("Nightscout URL not set")) {
+          statusLabel.set_title(_("Error: Nightscout URL not set"));
+        } else {
+          statusLabel.set_title(_(`Error: ${error.message}`));
+        }
       });
-    } catch (error) {
-      console.log(error);
-      statusLabel.set_title(_(`Error: ${error.message}`));
-    }
   }
 
   _refreshDebugInfo(settings, debugElements) {
@@ -617,50 +638,12 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     // Store reference to debug elements for copying
     window._lastServerData = null;
 
-    const nightscoutUrl = settings.get_string("nightscout-url");
-    const authToken = settings.get_string("authentication-token");
-
-    if (!nightscoutUrl) {
-      serverStatusRow.set_title(_("Error"));
-      serverStatusRow.set_subtitle(_("Nightscout URL not configured"));
-      return;
-    }
-
-    const session = new Soup.Session();
-    const message = Soup.Message.new("GET", `${nightscoutUrl}/api/v1/status`);
-    message.request_headers.append("Accept", "application/json");
-
-    if (authToken) {
-      message.request_headers.append("API-SECRET", authToken);
-    }
+    // Update server status to show loading
+    debugElements.serverStatusRow.set_title(_("Fetching..."));
+    debugElements.serverStatusRow.set_subtitle(_("Connecting to Nightscout server..."));
 
     try {
-      const bytes = await new Promise((resolve, reject) => {
-        session.send_and_read_async(message, null, null, (session, result) => {
-          try {
-            if (message.status_code == Soup.Status.UNAUTHORIZED) {
-              reject(
-                new Error("Unauthorized. Check your authentication token."),
-              );
-              return;
-            }
-
-            if (message.status_code !== Soup.Status.OK) {
-              reject(new Error(`HTTP error! status: ${message.status_code}`));
-              return;
-            }
-
-            resolve(session.send_and_read_finish(result));
-          } catch (error) {
-            reject(error);
-          }
-        });
-      });
-
-      const response = JSON.parse(bytes.get_data().toString());
-
-      // Update server status row that will be recreated in _displayServerConfig
-      // The refresh button will be added there as well
+      const response = await this._fetchServerStatus(settings);
 
       // Store server data for copying
       window._lastServerData = response;
