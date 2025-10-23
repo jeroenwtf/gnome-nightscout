@@ -421,20 +421,18 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     });
 
     // Server version row
-    const serverVersionRow = new Adw.ActionRow({
-      title: _("Server Version"),
-      subtitle: _("Not fetched"),
-    });
-    serverVersionRow.add_css_class("property");
-    serverConfigGroup.add(serverVersionRow);
+    const serverVersionRow = this._createRow(
+      serverConfigGroup,
+      _("Server Version"),
+      _("Not fetched"),
+    );
 
     // Server units row
-    const serverUnitsRow = new Adw.ActionRow({
-      title: _("Server Units"),
-      subtitle: _("Not fetched"),
-    });
-    serverUnitsRow.add_css_class("property");
-    serverConfigGroup.add(serverUnitsRow);
+    const serverUnitsRow = this._createRow(
+      serverConfigGroup,
+      _("Server Units"),
+      _("Not fetched"),
+    );
 
     // Server thresholds expander
     const serverThresholdsExpander = new Adw.ExpanderRow({
@@ -443,33 +441,33 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     });
     serverConfigGroup.add(serverThresholdsExpander);
 
-    const serverBgLowRow = new Adw.ActionRow({
-      title: _("Low Threshold"),
-      subtitle: _("Not fetched"),
-    });
-    serverBgLowRow.add_css_class("property");
-    serverThresholdsExpander.add_row(serverBgLowRow);
+    const serverBgLowRow = this._createRow(
+      serverThresholdsExpander,
+      _("Low Threshold"),
+      _("Not fetched"),
+      true,
+    );
 
-    const serverBgTargetBottomRow = new Adw.ActionRow({
-      title: _("Target Bottom"),
-      subtitle: _("Not fetched"),
-    });
-    serverBgTargetBottomRow.add_css_class("property");
-    serverThresholdsExpander.add_row(serverBgTargetBottomRow);
+    const serverBgTargetBottomRow = this._createRow(
+      serverThresholdsExpander,
+      _("Target Bottom"),
+      _("Not fetched"),
+      true,
+    );
 
-    const serverBgTargetTopRow = new Adw.ActionRow({
-      title: _("Target Top"),
-      subtitle: _("Not fetched"),
-    });
-    serverBgTargetTopRow.add_css_class("property");
-    serverThresholdsExpander.add_row(serverBgTargetTopRow);
+    const serverBgTargetTopRow = this._createRow(
+      serverThresholdsExpander,
+      _("Target Top"),
+      _("Not fetched"),
+      true,
+    );
 
-    const serverBgHighRow = new Adw.ActionRow({
-      title: _("High Threshold"),
-      subtitle: _("Not fetched"),
-    });
-    serverBgHighRow.add_css_class("property");
-    serverThresholdsExpander.add_row(serverBgHighRow);
+    const serverBgHighRow = this._createRow(
+      serverThresholdsExpander,
+      _("High Threshold"),
+      _("Not fetched"),
+      true,
+    );
 
     // Local settings group
     const localSettingsGroup = new Adw.PreferencesGroup({
@@ -486,41 +484,36 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     debugPage.add(computedValuesGroup);
 
     // Effective units row
-    const effectiveUnitsRow = new Adw.ActionRow({
-      title: _("Effective Units"),
-      subtitle: _("Not fetched"),
-    });
-    effectiveUnitsRow.add_css_class("property");
-    computedValuesGroup.add(effectiveUnitsRow);
+    const effectiveUnitsRow = this._createRow(
+      computedValuesGroup,
+      _("Effective Units"),
+      _("Not fetched"),
+    );
 
     // Computed threshold rows
-    const computedLowRow = new Adw.ActionRow({
-      title: _("Computed Low"),
-      subtitle: _("Not fetched"),
-    });
-    computedLowRow.add_css_class("property");
-    computedValuesGroup.add(computedLowRow);
+    const computedLowRow = this._createRow(
+      computedValuesGroup,
+      _("Computed Low"),
+      _("Not fetched"),
+    );
 
-    const computedTargetBottomRow = new Adw.ActionRow({
-      title: _("Computed Target Bottom"),
-      subtitle: _("Not fetched"),
-    });
-    computedTargetBottomRow.add_css_class("property");
-    computedValuesGroup.add(computedTargetBottomRow);
+    const computedTargetBottomRow = this._createRow(
+      computedValuesGroup,
+      _("Computed Target Bottom"),
+      _("Not fetched"),
+    );
 
-    const computedTargetTopRow = new Adw.ActionRow({
-      title: _("Computed Target Top"),
-      subtitle: _("Not fetched"),
-    });
-    computedTargetTopRow.add_css_class("property");
-    computedValuesGroup.add(computedTargetTopRow);
+    const computedTargetTopRow = this._createRow(
+      computedValuesGroup,
+      _("Computed Target Top"),
+      _("Not fetched"),
+    );
 
-    const computedHighRow = new Adw.ActionRow({
-      title: _("Computed High"),
-      subtitle: _("Not fetched"),
-    });
-    computedHighRow.add_css_class("property");
-    computedValuesGroup.add(computedHighRow);
+    const computedHighRow = this._createRow(
+      computedValuesGroup,
+      _("Computed High"),
+      _("Not fetched"),
+    );
 
     // Store debug elements for updating
     window._debugElements = {
@@ -542,7 +535,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       computedHighRow,
     };
 
-    
     // Connect to settings changes for real-time debug updates
     window._settingsHandler = window._settings.connect("changed", () => {
       this._updateDebugInfo(window._settings, window._debugElements);
@@ -804,12 +796,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
         .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
         .join(" ");
 
-      const row = new Adw.ActionRow({
-        title: title,
-        subtitle: setting.format(value),
-      });
-      row.add_css_class("property");
-      group.add(row);
+      const row = this._createRow(group, title, setting.format(value));
 
       // Connect to changes
       const handler = settings.connect(`changed::${setting.key}`, () => {
@@ -844,12 +831,12 @@ export default class NightscoutPreferences extends ExtensionPreferences {
           .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
           .join(" ");
 
-        const row = new Adw.ActionRow({
-          title: title,
-          subtitle: setting.format(value),
-        });
-        row.add_css_class("property");
-        showExpander.add_row(row);
+        const row = this._createRow(
+          showExpander,
+          title,
+          setting.format(value),
+          true,
+        );
 
         const handler = settings.connect(`changed::${setting.key}`, () => {
           let newValue = settings.get_boolean(setting.key);
@@ -882,12 +869,12 @@ export default class NightscoutPreferences extends ExtensionPreferences {
           .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
           .join(" ");
 
-        const row = new Adw.ActionRow({
-          title: title,
-          subtitle: setting.format(value),
-        });
-        row.add_css_class("property");
-        notificationExpander.add_row(row);
+        const row = this._createRow(
+          notificationExpander,
+          title,
+          setting.format(value),
+          true,
+        );
 
         const handler = settings.connect(`changed::${setting.key}`, () => {
           let newValue;
@@ -910,9 +897,13 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     let child = group.get_first_child();
 
     while (child) {
-      if (child.title && child.subtitle && child.get_css_classes().includes("property")) {
+      if (
+        child.title &&
+        child.subtitle &&
+        child.get_css_classes().includes("property")
+      ) {
         // Try to find a matching setting in the schema
-        const matchingSetting = this._settingsSchema.find(setting => {
+        const matchingSetting = this._settingsSchema.find((setting) => {
           const title = setting.key
             .split("-")
             .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -1163,6 +1154,17 @@ export default class NightscoutPreferences extends ExtensionPreferences {
   _updateComputedValues(serverData, settings) {
     // Update existing computed values with updated settings
     this._displayComputedValues(serverData, settings, window._debugElements);
+  }
+
+  _createRow(container, title, subtitle, isExpander = false) {
+    const row = new Adw.ActionRow({ title, subtitle });
+    row.add_css_class("property");
+    if (isExpander) {
+      container.add_row(row);
+    } else {
+      container.add(row);
+    }
+    return row;
   }
 
   _is24HourFormat() {
