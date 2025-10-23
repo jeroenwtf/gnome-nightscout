@@ -315,7 +315,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       Gio.SettingsBindFlags.DEFAULT,
     );
 
-    let urgencyLevelsList = new Gtk.StringList();
+    const urgencyLevelsList = new Gtk.StringList();
     urgencyLevelsList.append(_("Low"));
     urgencyLevelsList.append(_("Normal"));
     urgencyLevelsList.append(_("High"));
