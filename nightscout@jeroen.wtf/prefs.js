@@ -524,12 +524,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
   }
 
   _refreshDebugInfo(settings, debugElements) {
-    const {
-      serverStatusRow,
-      serverConfigGroup,
-      localSettingsGroup,
-      computedValuesGroup,
-    } = debugElements;
+    const { serverStatusRow, localSettingsGroup } = debugElements;
 
     // Update server status to show loading
     serverStatusRow.set_title(_("Updating..."));
@@ -541,7 +536,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
   }
 
   _updateDebugInfo(settings, debugElements) {
-    const { localSettingsGroup, computedValuesGroup } = debugElements;
+    const { localSettingsGroup } = debugElements;
 
     // Update local settings display
     this._updateLocalSettings(settings, localSettingsGroup);
@@ -553,8 +548,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
   }
 
   async _fetchServerConfigForDebug(settings, debugElements) {
-    const { serverConfigGroup, computedValuesGroup } = debugElements;
-
     // Store reference to debug elements for copying
     window._lastServerData = null;
 
@@ -978,8 +971,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     }
   }
 
-  _copyAllDebugInfo(settings, debugElements) {
-    const nightscoutUrl = settings.get_string("nightscout-url");
+  _copyAllDebugInfo(settings) {
     const authToken = settings.get_string("authentication-token");
     const refreshInterval = settings.get_int("refresh-interval");
     const timeout = settings.get_int("timeout-time");
