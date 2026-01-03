@@ -68,6 +68,8 @@ I would suggest you to try them and see what works better for you. In the future
 
 As of today I just created the extension. For sure there are bugs and improvements that I will do over time. If you have questions or problems feel free to open an issue and will take a look as soon as I can. Thank you for your patience!
 
+Remember to check the *Diagnostics* tab in the extension settings. You can use that information for debugging :)
+
 
 ## Acknowledgements
 
