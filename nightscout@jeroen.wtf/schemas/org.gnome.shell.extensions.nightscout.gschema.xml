@@ -90,5 +90,37 @@
       <summary>Units selection</summary>
       <description>Units to display glucose values in. 'auto' uses server settings, 'mg/dl' or 'mmol/L' for manual selection</description>
     </key>
+
+    <!-- Threshold overrides -->
+
+    <key name="threshold-override-enabled" type="b">
+      <default>false</default>
+      <summary>Override server thresholds</summary>
+      <description>When enabled, use custom threshold values instead of fetching from the Nightscout server</description>
+    </key>
+
+    <key name="threshold-bg-high" type="i">
+      <default>260</default>
+      <summary>High threshold</summary>
+      <description>The blood glucose value considered too high</description>
+    </key>
+
+    <key name="threshold-bg-target-top" type="i">
+      <default>180</default>
+      <summary>Target top threshold</summary>
+      <description>The upper bound of the target blood glucose range</description>
+    </key>
+
+    <key name="threshold-bg-target-bottom" type="i">
+      <default>70</default>
+      <summary>Target bottom threshold</summary>
+      <description>The lower bound of the target blood glucose range</description>
+    </key>
+
+    <key name="threshold-bg-low" type="i">
+      <default>55</default>
+      <summary>Low threshold</summary>
+      <description>The blood glucose value considered too low</description>
+    </key>
   </schema>
 </schemalist>

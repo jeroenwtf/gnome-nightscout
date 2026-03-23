@@ -88,6 +88,31 @@ export default class NightscoutPreferences extends ExtensionPreferences {
         format: (v) =>
           [_("Low"), _("Normal"), _("High"), _("Critical")][v] || _("Unknown"),
       },
+      {
+        key: "threshold-override-enabled",
+        type: "boolean",
+        format: (v) => (v ? _("Enabled") : _("Disabled")),
+      },
+      {
+        key: "threshold-bg-high",
+        type: "int",
+        format: (v) => `${v}`,
+      },
+      {
+        key: "threshold-bg-target-top",
+        type: "int",
+        format: (v) => `${v}`,
+      },
+      {
+        key: "threshold-bg-target-bottom",
+        type: "int",
+        format: (v) => `${v}`,
+      },
+      {
+        key: "threshold-bg-low",
+        type: "int",
+        format: (v) => `${v}`,
+      },
     ];
   }
 
@@ -242,10 +267,17 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       Gio.SettingsBindFlags.DEFAULT,
     );
 
+    // Glucose values page
+    const glucoseValuesPage = new Adw.PreferencesPage({
+      title: _("Glucose values"),
+      icon_name: "weather-showers-scattered-symbolic",
+    });
+    window.add(glucoseValuesPage);
+
     const unitsGroup = new Adw.PreferencesGroup({
       title: _("Units"),
     });
-    page.add(unitsGroup);
+    glucoseValuesPage.add(unitsGroup);
 
     const unitsList = new Gtk.StringList();
     unitsList.append(_("Auto (from server)"));
@@ -273,6 +305,118 @@ export default class NightscoutPreferences extends ExtensionPreferences {
         window._settings.set_string("units-selection", unitsMap[selectedIndex]);
       }
     });
+
+    // Threshold overrides section
+    const thresholdsGroup = new Adw.PreferencesGroup({
+      title: _("Threshold ranges"),
+      description: _(
+        "These determine when your glucose is considered too high, too low, or in range.",
+      ),
+    });
+    glucoseValuesPage.add(thresholdsGroup);
+
+    const thresholdOverrideRow = new Adw.SwitchRow({
+      title: _("Override server thresholds"),
+      subtitle: _(
+        "Use custom threshold values instead of the provided from Nightscout server",
+      ),
+    });
+    thresholdsGroup.add(thresholdOverrideRow);
+
+    window._settings.bind(
+      "threshold-override-enabled",
+      thresholdOverrideRow,
+      "active",
+      Gio.SettingsBindFlags.DEFAULT,
+    );
+
+    // Threshold value rows (visible but sensitivity controlled by toggle)
+    const thresholdBgHighRow = new Adw.SpinRow({
+      title: _("High threshold"),
+      subtitle: _("Value considered too high"),
+      adjustment: new Gtk.Adjustment({
+        lower: 50,
+        upper: 400,
+        step_increment: 1,
+      }),
+    });
+    thresholdsGroup.add(thresholdBgHighRow);
+
+    window._settings.bind(
+      "threshold-bg-high",
+      thresholdBgHighRow,
+      "value",
+      Gio.SettingsBindFlags.DEFAULT,
+    );
+
+    const thresholdBgTargetTopRow = new Adw.SpinRow({
+      title: _("Target top"),
+      subtitle: _("Upper bound of target range"),
+      adjustment: new Gtk.Adjustment({
+        lower: 50,
+        upper: 300,
+        step_increment: 1,
+      }),
+    });
+    thresholdsGroup.add(thresholdBgTargetTopRow);
+
+    window._settings.bind(
+      "threshold-bg-target-top",
+      thresholdBgTargetTopRow,
+      "value",
+      Gio.SettingsBindFlags.DEFAULT,
+    );
+
+    const thresholdBgTargetBottomRow = new Adw.SpinRow({
+      title: _("Target bottom"),
+      subtitle: _("Lower bound of target range"),
+      adjustment: new Gtk.Adjustment({
+        lower: 30,
+        upper: 200,
+        step_increment: 1,
+      }),
+    });
+    thresholdsGroup.add(thresholdBgTargetBottomRow);
+
+    window._settings.bind(
+      "threshold-bg-target-bottom",
+      thresholdBgTargetBottomRow,
+      "value",
+      Gio.SettingsBindFlags.DEFAULT,
+    );
+
+    const thresholdBgLowRow = new Adw.SpinRow({
+      title: _("Low threshold"),
+      subtitle: _("Value considered too low"),
+      adjustment: new Gtk.Adjustment({
+        lower: 20,
+        upper: 150,
+        step_increment: 1,
+      }),
+    });
+    thresholdsGroup.add(thresholdBgLowRow);
+
+    window._settings.bind(
+      "threshold-bg-low",
+      thresholdBgLowRow,
+      "value",
+      Gio.SettingsBindFlags.DEFAULT,
+    );
+
+    // Enable/disable threshold fields based on override switch
+    const updateThresholdSensitivity = () => {
+      const overrideEnabled = thresholdOverrideRow.active;
+      thresholdBgHighRow.set_sensitive(overrideEnabled);
+      thresholdBgTargetTopRow.set_sensitive(overrideEnabled);
+      thresholdBgTargetBottomRow.set_sensitive(overrideEnabled);
+      thresholdBgLowRow.set_sensitive(overrideEnabled);
+    };
+
+    // Connect to switch state changes
+    thresholdOverrideRow.connect("notify::active", updateThresholdSensitivity);
+
+    // Set initial state
+    updateThresholdSensitivity();
 
     const notificationsGroup = new Adw.PreferencesGroup({
       title: _("Notifications"),
@@ -754,12 +898,15 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     const basicSettings = [];
     const showSettings = [];
     const notificationSettings = [];
+    const thresholdSettings = [];
 
     this._settingsSchema.forEach((setting) => {
       if (setting.key.startsWith("show-")) {
         showSettings.push(setting);
       } else if (setting.key.startsWith("notification-")) {
         notificationSettings.push(setting);
+      } else if (setting.key.startsWith("threshold-")) {
+        thresholdSettings.push(setting);
       } else {
         basicSettings.push(setting);
       }
@@ -825,6 +972,51 @@ export default class NightscoutPreferences extends ExtensionPreferences {
 
         const handler = settings.connect(`changed::${setting.key}`, () => {
           let newValue = settings.get_boolean(setting.key);
+          row.set_subtitle(setting.format(newValue));
+        });
+
+        if (!window._debugHandlers) window._debugHandlers = {};
+        window._debugHandlers[setting.key] = handler;
+      });
+    }
+
+    // Create expander for threshold settings
+    if (thresholdSettings.length > 0) {
+      const thresholdExpander = new Adw.ExpanderRow({
+        title: _("Threshold Overrides"),
+        subtitle: _("Custom threshold values"),
+      });
+      group.add(thresholdExpander);
+
+      thresholdSettings.forEach((setting) => {
+        let value;
+        if (setting.type === "int") {
+          value = settings.get_int(setting.key);
+        } else {
+          value = settings.get_boolean(setting.key);
+        }
+        const title = setting.key
+          .replace("threshold-", "")
+          .replace("bg-", "")
+          .replace("override-", "")
+          .split("-")
+          .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+          .join(" ");
+
+        const row = this._createRow(
+          thresholdExpander,
+          title,
+          setting.format(value),
+          true,
+        );
+
+        const handler = settings.connect(`changed::${setting.key}`, () => {
+          let newValue;
+          if (setting.type === "int") {
+            newValue = settings.get_int(setting.key);
+          } else {
+            newValue = settings.get_boolean(setting.key);
+          }
           row.set_subtitle(setting.format(newValue));
         });
 
@@ -907,6 +1099,17 @@ export default class NightscoutPreferences extends ExtensionPreferences {
           if (setting.key.startsWith("notification-")) {
             const cleanTitle = setting.key
               .replace("notification-", "")
+              .split("-")
+              .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+              .join(" ");
+            return child.title === cleanTitle;
+          }
+
+          if (setting.key.startsWith("threshold-")) {
+            const cleanTitle = setting.key
+              .replace("threshold-", "")
+              .replace("bg-", "")
+              .replace("override-", "")
               .split("-")
               .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
               .join(" ");
@@ -1070,12 +1273,35 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     const unitsSelection = settings.get_string("units-selection");
     const effectiveUnits =
       unitsSelection === "auto" ? serverUnits : unitsSelection;
+    const thresholdOverrideEnabled = settings.get_boolean(
+      "threshold-override-enabled",
+    );
 
     // Update effective units
     elements.effectiveUnitsRow.set_subtitle(effectiveUnits);
 
     // Update computed thresholds
-    if (serverSettings.thresholds) {
+    if (thresholdOverrideEnabled) {
+      // Use user's custom threshold values
+      const localHigh = settings.get_int("threshold-bg-high");
+      const localTargetTop = settings.get_int("threshold-bg-target-top");
+      const localTargetBottom = settings.get_int("threshold-bg-target-bottom");
+      const localLow = settings.get_int("threshold-bg-low");
+
+      elements.computedLowRow.set_subtitle(
+        `${localLow} ${effectiveUnits} (from your settings)`,
+      );
+      elements.computedTargetBottomRow.set_subtitle(
+        `${localTargetBottom} ${effectiveUnits} (from your settings)`,
+      );
+      elements.computedTargetTopRow.set_subtitle(
+        `${localTargetTop} ${effectiveUnits} (from your settings)`,
+      );
+      elements.computedHighRow.set_subtitle(
+        `${localHigh} ${effectiveUnits} (from your settings)`,
+      );
+    } else if (serverSettings.thresholds) {
+      // Calculate from server data
       const thresholds = serverSettings.thresholds;
       const conversionFactor =
         effectiveUnits === "mmol/L" && serverUnits === "mg/dl"
