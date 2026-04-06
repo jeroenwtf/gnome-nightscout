@@ -50,6 +50,7 @@ let NOTIFICATION_RAPIDLY_CHANGES = true;
 let NOTIFICATION_URGENCY_LEVEL = 2;
 let UNITS_SELECTION = "auto";
 let UNITS = "mg/dl";
+let THRESHOLD_OVERRIDE_ENABLED = false;
 let THRESHOLD_BG_HIGH = 260;
 let THRESHOLD_BG_TARGET_TOP = 180;
 let THRESHOLD_BG_TARGET_BOTTOM = 70;
@@ -346,6 +347,10 @@ const Indicator = GObject.registerClass(
 
       UNITS_SELECTION = settings.get_string("units-selection");
 
+      THRESHOLD_OVERRIDE_ENABLED = settings.get_boolean(
+        "threshold-override-enabled",
+      );
+
       NOTIFICATION_OUT_OF_RANGE = settings.get_boolean(
         "notification-out-of-range",
       );
@@ -365,14 +370,33 @@ const Indicator = GObject.registerClass(
           "mmol/L": "mmol/L",
         }[UNITS_SELECTION] || "mg/dl";
 
-      THRESHOLD_BG_HIGH = this._convertBgValue(SERVER_THRESHOLD_BG_HIGH);
-      THRESHOLD_BG_TARGET_TOP = this._convertBgValue(
-        SERVER_THRESHOLD_BG_TARGET_TOP,
-      );
-      THRESHOLD_BG_TARGET_BOTTOM = this._convertBgValue(
-        SERVER_THRESHOLD_BG_TARGET_BOTTOM,
-      );
-      THRESHOLD_BG_LOW = this._convertBgValue(SERVER_THRESHOLD_BG_LOW);
+      if (THRESHOLD_OVERRIDE_ENABLED) {
+        // Use local threshold values from settings
+        // Note: User enters values in their preferred display units,
+        // so no conversion needed - store as numbers
+        const { settings } = this.extension;
+        const localHigh = settings.get_int("threshold-bg-high");
+        const localTargetTop = settings.get_int("threshold-bg-target-top");
+        const localTargetBottom = settings.get_int(
+          "threshold-bg-target-bottom",
+        );
+        const localLow = settings.get_int("threshold-bg-low");
+
+        THRESHOLD_BG_HIGH = localHigh;
+        THRESHOLD_BG_TARGET_TOP = localTargetTop;
+        THRESHOLD_BG_TARGET_BOTTOM = localTargetBottom;
+        THRESHOLD_BG_LOW = localLow;
+      } else {
+        // Use server threshold values
+        THRESHOLD_BG_HIGH = this._convertBgValue(SERVER_THRESHOLD_BG_HIGH);
+        THRESHOLD_BG_TARGET_TOP = this._convertBgValue(
+          SERVER_THRESHOLD_BG_TARGET_TOP,
+        );
+        THRESHOLD_BG_TARGET_BOTTOM = this._convertBgValue(
+          SERVER_THRESHOLD_BG_TARGET_BOTTOM,
+        );
+        THRESHOLD_BG_LOW = this._convertBgValue(SERVER_THRESHOLD_BG_LOW);
+      }
     }
 
     async _fetchServerSettings() {
@@ -571,9 +595,9 @@ const Indicator = GObject.registerClass(
       }
 
       let glucoseValue = this._convertBgValue(entry.sgv);
-      let glucoseValueString = glucoseValue.toString();
+      let glucoseValueString = this._formatBgValue(glucoseValue);
       let delta = this._convertBgValue(entry.sgv - previousEntry.sgv);
-      let deltaString = delta.toString();
+      let deltaString = this._formatBgValue(delta);
 
       let directionValue = entry.direction;
       let date = entry.date;
@@ -755,12 +779,12 @@ const Indicator = GObject.registerClass(
 
     _convertBgValue(value) {
       if (UNITS === SERVER_UNITS) {
-        return UNITS === "mmol/L" ? Number(value).toFixed(1) : value;
+        return UNITS === "mmol/L" ? Number(value) : value;
       }
 
       if (UNITS === "mmol/L" && SERVER_UNITS === "mg/dl") {
         const convertedValue = value * 0.0555;
-        return Number(convertedValue.toFixed(1));
+        return Number(convertedValue);
       }
 
       if (UNITS === "mg/dl" && SERVER_UNITS === "mmol/L") {
@@ -769,6 +793,10 @@ const Indicator = GObject.registerClass(
       }
 
       return value;
+    }
+
+    _formatBgValue(value) {
+      return UNITS === "mmol/L" ? value.toFixed(1) : value.toString();
     }
   },
 );
