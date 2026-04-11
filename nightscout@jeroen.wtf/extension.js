@@ -68,6 +68,7 @@ const Indicator = GObject.registerClass(
       this._disconnectSettings();
       this._disconnectLoop();
       this._disconnectSignalHandlers();
+      this._abortHttpSession();
 
       super.destroy();
     }
@@ -808,6 +809,13 @@ const Indicator = GObject.registerClass(
         handler.object.disconnect(handler.id);
       }
       this._signalHandlers = [];
+    }
+
+    _abortHttpSession() {
+      if (this.httpSession) {
+        this.httpSession.abort();
+        this.httpSession = null;
+      }
     }
 
     _convertBgValue(value) {
