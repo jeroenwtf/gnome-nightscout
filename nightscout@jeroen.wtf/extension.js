@@ -67,6 +67,7 @@ const Indicator = GObject.registerClass(
     destroy() {
       this._disconnectSettings();
       this._disconnectLoop();
+      this._disconnectSignalHandlers();
 
       super.destroy();
     }
@@ -78,6 +79,7 @@ const Indicator = GObject.registerClass(
       this.openSettings = extension.openSettings;
 
       this._settingsChangedId = null;
+      this._signalHandlers = [];
       this._error = false;
       this._notificationStorage = [];
 
@@ -101,8 +103,11 @@ const Indicator = GObject.registerClass(
           title: "Nightscout",
         });
 
-        this._notifSource.connect("destroy", () => {
-          this._notifSource = null;
+        this._signalHandlers.push({
+          object: this._notifSource,
+          id: this._notifSource.connect("destroy", () => {
+            this._notifSource = null;
+          }),
         });
 
         Main.messageTray.add(this._notifSource);
@@ -215,8 +220,11 @@ const Indicator = GObject.registerClass(
 
       let refreshNowItem = new PopupMenu.PopupMenuItem(_("Refresh now"));
 
-      refreshNowItem.connect("activate", () => {
-        this._checkUpdates();
+      this._signalHandlers.push({
+        object: refreshNowItem,
+        id: refreshNowItem.connect("activate", () => {
+          this._checkUpdates();
+        }),
       });
 
       // ------ Open your Nightscout site
@@ -225,8 +233,11 @@ const Indicator = GObject.registerClass(
         _("Open your Nightscout site"),
       );
 
-      openNightscoutSiteItem.connect("activate", () => {
-        this._openNightscoutSite();
+      this._signalHandlers.push({
+        object: openNightscoutSiteItem,
+        id: openNightscoutSiteItem.connect("activate", () => {
+          this._openNightscoutSite();
+        }),
       });
 
       this._debugNightscoutUrlItem = new PopupMenu.PopupMenuItem(
@@ -241,8 +252,11 @@ const Indicator = GObject.registerClass(
         SHOW_DELTA,
       );
 
-      this._showDeltaItem.connect("toggled", (item) => {
-        settings.set_boolean("show-delta", item.state);
+      this._signalHandlers.push({
+        object: this._showDeltaItem,
+        id: this._showDeltaItem.connect("toggled", (item) => {
+          settings.set_boolean("show-delta", item.state);
+        }),
       });
 
       // ------ Toggle: show-trend-arrows
@@ -252,8 +266,11 @@ const Indicator = GObject.registerClass(
         SHOW_TREND_ARROWS,
       );
 
-      this._showTrendArrowsItem.connect("toggled", (item) => {
-        settings.set_boolean("show-trend-arrows", item.state);
+      this._signalHandlers.push({
+        object: this._showTrendArrowsItem,
+        id: this._showTrendArrowsItem.connect("toggled", (item) => {
+          settings.set_boolean("show-trend-arrows", item.state);
+        }),
       });
 
       // ------ Toggle: show-elapsed-time
@@ -263,8 +280,11 @@ const Indicator = GObject.registerClass(
         SHOW_ELAPSED_TIME,
       );
 
-      this._showElapsedTimeItem.connect("toggled", (item) => {
-        settings.set_boolean("show-elapsed-time", item.state);
+      this._signalHandlers.push({
+        object: this._showElapsedTimeItem,
+        id: this._showElapsedTimeItem.connect("toggled", (item) => {
+          settings.set_boolean("show-elapsed-time", item.state);
+        }),
       });
 
       // ------ Toggle: show-stale-elapsed-time
@@ -274,16 +294,22 @@ const Indicator = GObject.registerClass(
         SHOW_STALE_ELAPSED_TIME,
       );
 
-      this._showStaleElapsedTimeItem.connect("toggled", (item) => {
-        settings.set_boolean("show-stale-elapsed-time", item.state);
+      this._signalHandlers.push({
+        object: this._showStaleElapsedTimeItem,
+        id: this._showStaleElapsedTimeItem.connect("toggled", (item) => {
+          settings.set_boolean("show-stale-elapsed-time", item.state);
+        }),
       });
 
       // ------ Settings
 
       let settingsItem = new PopupMenu.PopupMenuItem(_("All settings"));
 
-      settingsItem.connect("activate", () => {
-        this.openSettings();
+      this._signalHandlers.push({
+        object: settingsItem,
+        id: settingsItem.connect("activate", () => {
+          this.openSettings();
+        }),
       });
 
       // ------ Build the menu
@@ -775,6 +801,13 @@ const Indicator = GObject.registerClass(
         GLib.Source.remove(this._sourceId);
         this._sourceId = null;
       }
+    }
+
+    _disconnectSignalHandlers() {
+      for (const handler of this._signalHandlers) {
+        handler.object.disconnect(handler.id);
+      }
+      this._signalHandlers = [];
     }
 
     _convertBgValue(value) {
