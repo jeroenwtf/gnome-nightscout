@@ -5,8 +5,6 @@ folder_in_extensions="$HOME/.local/share/gnome-shell/extensions/nightscout@jeroe
 
 cd "$folder_in_repository" || exit
 
-glib-compile-schemas schemas/
-
 if [ -L "$folder_in_extensions" ]; then
   # It's a symlink, remove it
   rm "$folder_in_extensions"
