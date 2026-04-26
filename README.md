@@ -2,6 +2,36 @@
 
 <a href="https://extensions.gnome.org/extension/7388/nightscout/" target="_blank"><img src="images/get-it-on-ego.png" alt="Gnome Extensions badge" width="180" /></a>
 
+> [!WARNING]
+> **GNOME 50 users 👋**
+>
+> GNOME Shell extensions reviews are currently delayed due to [reviewer availability issues](https://thisweek.gnome.org/posts/2026/03/twig-242/#shell-extensions). Updates compatible with GNOME 50 may take time to appear on GNOME Extensions.
+>
+> If you don’t want to wait, you can install the latest version manually:
+>
+> ```bash
+> git clone https://github.com/jeroenwtf/gnome-nightscout.git
+> cd gnome-nightscout
+> glib-compile-schemas gnome-nightscout/nightscout@jeroen.wtf/schemas/
+> rm -rf ~/.local/share/gnome-shell/extensions/nightscout@jeroen.wtf
+> cp -r gnome-nightscout/nightscout@jeroen.wtf ~/.local/share/gnome-shell/extensions/
+> gnome-extensions enable nightscout@jeroen.wtf
+> ```
+>
+> If the extension doesn’t appear immediately, log out and back in. If you have any questions don't hesitate on contacting me. Will assist you :)
+
+> [!TIP]
+> **Reverting to the official version later**
+>
+> Once the update is available on the official site, remove the manually installed version to restore automatic updates:
+>
+> ```
+> gnome-extensions disable nightscout@jeroen.wtf
+> rm -rf ~/.local/share/gnome-shell/extensions/nightscout@jeroen.wtf
+> ```
+>
+> And then reinstall the extension from the [extensions directory](https://extensions.gnome.org/extension/7388/nightscout/).
+
 A GNOME extension to keep an eye on your glucoses levels stored in a Nightscout site.
 
 <img src="images/screenshot.png" alt="Menu screenshot of the indicator" width="375" />
