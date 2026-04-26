@@ -18,7 +18,7 @@
 > gnome-extensions enable nightscout@jeroen.wtf
 > ```
 >
-> If the extension doesn’t appear immediately, log out and back in. If you have any questions don't hesitate on contacting me. Will assist you :)
+> If the extension doesn’t appear immediately, log out and back in. If you have any questions, don’t hesitate to contact me. I’ll assist you 🙂
 
 > [!TIP]
 > **Reverting to the official version later**
