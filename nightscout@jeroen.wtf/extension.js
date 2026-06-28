@@ -414,15 +414,14 @@ const Indicator = GObject.registerClass(
         THRESHOLD_BG_TARGET_BOTTOM = localTargetBottom;
         THRESHOLD_BG_LOW = localLow;
       } else {
-        // Use server threshold values
-        THRESHOLD_BG_HIGH = this._convertBgValue(SERVER_THRESHOLD_BG_HIGH);
-        THRESHOLD_BG_TARGET_TOP = this._convertBgValue(
+        THRESHOLD_BG_HIGH = this._convertThreshold(SERVER_THRESHOLD_BG_HIGH);
+        THRESHOLD_BG_TARGET_TOP = this._convertThreshold(
           SERVER_THRESHOLD_BG_TARGET_TOP,
         );
-        THRESHOLD_BG_TARGET_BOTTOM = this._convertBgValue(
+        THRESHOLD_BG_TARGET_BOTTOM = this._convertThreshold(
           SERVER_THRESHOLD_BG_TARGET_BOTTOM,
         );
-        THRESHOLD_BG_LOW = this._convertBgValue(SERVER_THRESHOLD_BG_LOW);
+        THRESHOLD_BG_LOW = this._convertThreshold(SERVER_THRESHOLD_BG_LOW);
       }
     }
 
@@ -578,7 +577,7 @@ const Indicator = GObject.registerClass(
         case 1:
           return MessageTray.Urgency.HIGH;
 
-        case 1:
+        case 2:
           return MessageTray.Urgency.CRITICAL;
 
         default:
@@ -818,21 +817,25 @@ const Indicator = GObject.registerClass(
       }
     }
 
+    // Entries from /api/v1/entries.json always have sgv in mg/dL.
     _convertBgValue(value) {
-      if (UNITS === SERVER_UNITS) {
-        return UNITS === "mmol/L" ? Number(value) : value;
+      if (UNITS === "mmol/L") {
+        return Number((value * 0.0555).toFixed(1));
       }
+      return value;
+    }
 
+    // Thresholds from /api/v1/status are in SERVER_UNITS.
+    _convertThreshold(value) {
+      if (SERVER_UNITS === UNITS) {
+        return value;
+      }
       if (UNITS === "mmol/L" && SERVER_UNITS === "mg/dl") {
-        const convertedValue = value * 0.0555;
-        return Number(convertedValue);
+        return Number((value * 0.0555).toFixed(1));
       }
-
       if (UNITS === "mg/dl" && SERVER_UNITS === "mmol/L") {
-        const convertedValue = value / 0.0555;
-        return Math.round(convertedValue);
+        return Math.round(value / 0.0555);
       }
-
       return value;
     }
 
