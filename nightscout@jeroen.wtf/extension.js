@@ -414,14 +414,14 @@ const Indicator = GObject.registerClass(
         THRESHOLD_BG_TARGET_BOTTOM = localTargetBottom;
         THRESHOLD_BG_LOW = localLow;
       } else {
-        THRESHOLD_BG_HIGH = this._convertThreshold(SERVER_THRESHOLD_BG_HIGH);
-        THRESHOLD_BG_TARGET_TOP = this._convertThreshold(
+        THRESHOLD_BG_HIGH = this._convertBgValue(SERVER_THRESHOLD_BG_HIGH);
+        THRESHOLD_BG_TARGET_TOP = this._convertBgValue(
           SERVER_THRESHOLD_BG_TARGET_TOP,
         );
-        THRESHOLD_BG_TARGET_BOTTOM = this._convertThreshold(
+        THRESHOLD_BG_TARGET_BOTTOM = this._convertBgValue(
           SERVER_THRESHOLD_BG_TARGET_BOTTOM,
         );
-        THRESHOLD_BG_LOW = this._convertThreshold(SERVER_THRESHOLD_BG_LOW);
+        THRESHOLD_BG_LOW = this._convertBgValue(SERVER_THRESHOLD_BG_LOW);
       }
     }
 
@@ -575,9 +575,12 @@ const Indicator = GObject.registerClass(
           return MessageTray.Urgency.LOW;
 
         case 1:
-          return MessageTray.Urgency.HIGH;
+          return MessageTray.Urgency.NORMAL;
 
         case 2:
+          return MessageTray.Urgency.HIGH;
+
+        case 3:
           return MessageTray.Urgency.CRITICAL;
 
         default:
@@ -817,24 +820,11 @@ const Indicator = GObject.registerClass(
       }
     }
 
-    // Entries from /api/v1/entries.json always have sgv in mg/dL.
+    // sgv (entries.json) and thresholds (status) are always returned in
+    // mg/dL; convert to the chosen display unit.
     _convertBgValue(value) {
       if (UNITS === "mmol/L") {
         return Number((value * 0.0555).toFixed(1));
-      }
-      return value;
-    }
-
-    // Thresholds from /api/v1/status are in SERVER_UNITS.
-    _convertThreshold(value) {
-      if (SERVER_UNITS === UNITS) {
-        return value;
-      }
-      if (UNITS === "mmol/L" && SERVER_UNITS === "mg/dl") {
-        return Number((value * 0.0555).toFixed(1));
-      }
-      if (UNITS === "mg/dl" && SERVER_UNITS === "mmol/L") {
-        return Math.round(value / 0.0555);
       }
       return value;
     }
