@@ -844,37 +844,30 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     if (serverData.settings) {
       const settings = serverData.settings;
 
-      // Update units
-      if (settings.units) {
-        elements.serverUnitsRow.set_subtitle(settings.units);
-      } else {
-        elements.serverUnitsRow.set_subtitle(_("Not available"));
-      }
+      const serverUnits = ["mmol", "mmol/L"].includes(settings.units)
+        ? "mmol/L"
+        : "mg/dl";
 
-      // Update thresholds
+      // Update units
+      elements.serverUnitsRow.set_subtitle(
+        settings.units ? serverUnits : _("Not available"),
+      );
+
+      // Update thresholds (Nightscout returns them in mg/dL; display in
+      // the server's configured unit)
       if (settings.thresholds) {
         const thresholds = settings.thresholds;
+        const fmt = (raw) =>
+          raw !== undefined
+            ? `${this._convertFromMgDl(raw, serverUnits)} ${serverUnits}`
+            : _("Not available");
 
-        elements.serverBgLowRow.set_subtitle(
-          thresholds.bgLow !== undefined
-            ? thresholds.bgLow.toString()
-            : _("Not available"),
-        );
+        elements.serverBgLowRow.set_subtitle(fmt(thresholds.bgLow));
         elements.serverBgTargetBottomRow.set_subtitle(
-          thresholds.bgTargetBottom !== undefined
-            ? thresholds.bgTargetBottom.toString()
-            : _("Not available"),
+          fmt(thresholds.bgTargetBottom),
         );
-        elements.serverBgTargetTopRow.set_subtitle(
-          thresholds.bgTargetTop !== undefined
-            ? thresholds.bgTargetTop.toString()
-            : _("Not available"),
-        );
-        elements.serverBgHighRow.set_subtitle(
-          thresholds.bgHigh !== undefined
-            ? thresholds.bgHigh.toString()
-            : _("Not available"),
-        );
+        elements.serverBgTargetTopRow.set_subtitle(fmt(thresholds.bgTargetTop));
+        elements.serverBgHighRow.set_subtitle(fmt(thresholds.bgHigh));
       } else {
         elements.serverBgLowRow.set_subtitle(_("Not available"));
         elements.serverBgTargetBottomRow.set_subtitle(_("Not available"));
@@ -1200,31 +1193,16 @@ export default class NightscoutPreferences extends ExtensionPreferences {
 
       if (serverSettings.thresholds) {
         const thresholds = serverSettings.thresholds;
-        const conversionFactor =
-          effectiveUnits === "mmol/L" && serverUnits === "mg/dl"
-            ? 0.0555
-            : effectiveUnits === "mg/dl" && serverUnits === "mmol/L"
-              ? 1 / 0.0555
-              : 1;
+        // Server thresholds are always mg/dL; computed values use the
+        // effective (local) unit.
+        const toEffective = (raw) =>
+          raw !== undefined ? this._convertFromMgDl(raw, effectiveUnits) : null;
 
         computedValues.thresholds = {
-          low:
-            thresholds.bgLow !== undefined
-              ? Math.round(thresholds.bgLow * conversionFactor * 10) / 10
-              : null,
-          targetBottom:
-            thresholds.bgTargetBottom !== undefined
-              ? Math.round(thresholds.bgTargetBottom * conversionFactor * 10) /
-                10
-              : null,
-          targetTop:
-            thresholds.bgTargetTop !== undefined
-              ? Math.round(thresholds.bgTargetTop * conversionFactor * 10) / 10
-              : null,
-          high:
-            thresholds.bgHigh !== undefined
-              ? Math.round(thresholds.bgHigh * conversionFactor * 10) / 10
-              : null,
+          low: toEffective(thresholds.bgLow),
+          targetBottom: toEffective(thresholds.bgTargetBottom),
+          targetTop: toEffective(thresholds.bgTargetTop),
+          high: toEffective(thresholds.bgHigh),
         };
       }
     }
@@ -1301,58 +1279,21 @@ export default class NightscoutPreferences extends ExtensionPreferences {
         `${localHigh} ${effectiveUnits} (from your settings)`,
       );
     } else if (serverSettings.thresholds) {
-      // Calculate from server data
+      // Server thresholds are always mg/dL. Show the computed value in the
+      // effective (local) unit and the server value in the server unit.
       const thresholds = serverSettings.thresholds;
-      const conversionFactor =
-        effectiveUnits === "mmol/L" && serverUnits === "mg/dl"
-          ? 0.0555
-          : effectiveUnits === "mg/dl" && serverUnits === "mmol/L"
-            ? 1 / 0.0555
-            : 1;
+      const fmt = (raw) =>
+        raw !== undefined
+          ? `${this._convertFromMgDl(raw, effectiveUnits)} ${effectiveUnits} ` +
+            `(server: ${this._convertFromMgDl(raw, serverUnits)} ${serverUnits})`
+          : _("Not available");
 
-      // Update computed low
-      if (thresholds.bgLow !== undefined) {
-        const converted =
-          Math.round(thresholds.bgLow * conversionFactor * 10) / 10;
-        elements.computedLowRow.set_subtitle(
-          `${converted} ${effectiveUnits} (server: ${thresholds.bgLow} ${serverUnits})`,
-        );
-      } else {
-        elements.computedLowRow.set_subtitle(_("Not available"));
-      }
-
-      // Update computed target bottom
-      if (thresholds.bgTargetBottom !== undefined) {
-        const converted =
-          Math.round(thresholds.bgTargetBottom * conversionFactor * 10) / 10;
-        elements.computedTargetBottomRow.set_subtitle(
-          `${converted} ${effectiveUnits} (server: ${thresholds.bgTargetBottom} ${serverUnits})`,
-        );
-      } else {
-        elements.computedTargetBottomRow.set_subtitle(_("Not available"));
-      }
-
-      // Update computed target top
-      if (thresholds.bgTargetTop !== undefined) {
-        const converted =
-          Math.round(thresholds.bgTargetTop * conversionFactor * 10) / 10;
-        elements.computedTargetTopRow.set_subtitle(
-          `${converted} ${effectiveUnits} (server: ${thresholds.bgTargetTop} ${serverUnits})`,
-        );
-      } else {
-        elements.computedTargetTopRow.set_subtitle(_("Not available"));
-      }
-
-      // Update computed high
-      if (thresholds.bgHigh !== undefined) {
-        const converted =
-          Math.round(thresholds.bgHigh * conversionFactor * 10) / 10;
-        elements.computedHighRow.set_subtitle(
-          `${converted} ${effectiveUnits} (server: ${thresholds.bgHigh} ${serverUnits})`,
-        );
-      } else {
-        elements.computedHighRow.set_subtitle(_("Not available"));
-      }
+      elements.computedLowRow.set_subtitle(fmt(thresholds.bgLow));
+      elements.computedTargetBottomRow.set_subtitle(
+        fmt(thresholds.bgTargetBottom),
+      );
+      elements.computedTargetTopRow.set_subtitle(fmt(thresholds.bgTargetTop));
+      elements.computedHighRow.set_subtitle(fmt(thresholds.bgHigh));
     } else {
       // No thresholds available
       elements.computedLowRow.set_subtitle(_("Not available"));
@@ -1376,6 +1317,15 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       container.add(row);
     }
     return row;
+  }
+
+  // Nightscout always returns glucose values and thresholds in mg/dL.
+  // Convert a raw mg/dL value to the given display unit (1 decimal for mmol/L).
+  _convertFromMgDl(value, unit) {
+    if (unit === "mmol/L") {
+      return Math.round(value * 0.0555 * 10) / 10;
+    }
+    return value;
   }
 
   _is24HourFormat() {
