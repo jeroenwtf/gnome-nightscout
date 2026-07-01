@@ -9,6 +9,11 @@ import {
   gettext as _,
 } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 
+// Module-scoped on purpose: signal handlers don't see instance data set in
+// fillPreferencesWindow, and its `window` param shadows the global.
+let _debugElements = null;
+let _thresholdRows = null;
+
 export default class NightscoutPreferences extends ExtensionPreferences {
   constructor(metadata) {
     super(metadata);
@@ -94,12 +99,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
         format: (v) => (v ? _("Enabled") : _("Disabled")),
       },
       {
-        key: "threshold-bg-high",
-        type: "int",
-        format: (v) => `${v}`,
-      },
-      {
-        key: "threshold-bg-target-top",
+        key: "threshold-bg-low",
         type: "int",
         format: (v) => `${v}`,
       },
@@ -109,7 +109,12 @@ export default class NightscoutPreferences extends ExtensionPreferences {
         format: (v) => `${v}`,
       },
       {
-        key: "threshold-bg-low",
+        key: "threshold-bg-target-top",
+        type: "int",
+        format: (v) => `${v}`,
+      },
+      {
+        key: "threshold-bg-high",
         type: "int",
         format: (v) => `${v}`,
       },
@@ -291,7 +296,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     });
     unitsGroup.add(unitsSelectionRow);
 
-    const unitsMap = ["auto", "mg/dl", "mmol/L"];
+    const unitsMap = ["auto", "mg/dL", "mmol/L"];
     const currentUnits = window._settings.get_string("units-selection");
     const currentIndex = unitsMap.indexOf(currentUnits);
 
@@ -318,7 +323,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     const thresholdOverrideRow = new Adw.SwitchRow({
       title: _("Override server thresholds"),
       subtitle: _(
-        "Use custom threshold values instead of the provided from Nightscout server",
+        "Use custom threshold values instead of those from the Nightscout server (values must be entered in mg/dL).",
       ),
     });
     thresholdsGroup.add(thresholdOverrideRow);
@@ -331,38 +336,20 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     );
 
     // Threshold value rows (visible but sensitivity controlled by toggle)
-    const thresholdBgHighRow = new Adw.SpinRow({
-      title: _("High threshold"),
-      subtitle: _("Value considered too high"),
+    const thresholdBgLowRow = new Adw.SpinRow({
+      title: _("Low threshold"),
+      subtitle: _("Value considered too low"),
       adjustment: new Gtk.Adjustment({
-        lower: 50,
-        upper: 400,
+        lower: 20,
+        upper: 150,
         step_increment: 1,
       }),
     });
-    thresholdsGroup.add(thresholdBgHighRow);
+    thresholdsGroup.add(thresholdBgLowRow);
 
     window._settings.bind(
-      "threshold-bg-high",
-      thresholdBgHighRow,
-      "value",
-      Gio.SettingsBindFlags.DEFAULT,
-    );
-
-    const thresholdBgTargetTopRow = new Adw.SpinRow({
-      title: _("Target top"),
-      subtitle: _("Upper bound of target range"),
-      adjustment: new Gtk.Adjustment({
-        lower: 50,
-        upper: 300,
-        step_increment: 1,
-      }),
-    });
-    thresholdsGroup.add(thresholdBgTargetTopRow);
-
-    window._settings.bind(
-      "threshold-bg-target-top",
-      thresholdBgTargetTopRow,
+      "threshold-bg-low",
+      thresholdBgLowRow,
       "value",
       Gio.SettingsBindFlags.DEFAULT,
     );
@@ -385,31 +372,73 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       Gio.SettingsBindFlags.DEFAULT,
     );
 
-    const thresholdBgLowRow = new Adw.SpinRow({
-      title: _("Low threshold"),
-      subtitle: _("Value considered too low"),
+    const thresholdBgTargetTopRow = new Adw.SpinRow({
+      title: _("Target top"),
+      subtitle: _("Upper bound of target range"),
       adjustment: new Gtk.Adjustment({
-        lower: 20,
-        upper: 150,
+        lower: 50,
+        upper: 300,
         step_increment: 1,
       }),
     });
-    thresholdsGroup.add(thresholdBgLowRow);
+    thresholdsGroup.add(thresholdBgTargetTopRow);
 
     window._settings.bind(
-      "threshold-bg-low",
-      thresholdBgLowRow,
+      "threshold-bg-target-top",
+      thresholdBgTargetTopRow,
       "value",
       Gio.SettingsBindFlags.DEFAULT,
     );
 
+    const thresholdBgHighRow = new Adw.SpinRow({
+      title: _("High threshold"),
+      subtitle: _("Value considered too high"),
+      adjustment: new Gtk.Adjustment({
+        lower: 50,
+        upper: 400,
+        step_increment: 1,
+      }),
+    });
+    thresholdsGroup.add(thresholdBgHighRow);
+
+    window._settings.bind(
+      "threshold-bg-high",
+      thresholdBgHighRow,
+      "value",
+      Gio.SettingsBindFlags.DEFAULT,
+    );
+
+    _thresholdRows = [
+      {
+        row: thresholdBgLowRow,
+        key: "threshold-bg-low",
+        base: _("Value considered too low"),
+      },
+      {
+        row: thresholdBgTargetBottomRow,
+        key: "threshold-bg-target-bottom",
+        base: _("Lower bound of target range"),
+      },
+      {
+        row: thresholdBgTargetTopRow,
+        key: "threshold-bg-target-top",
+        base: _("Upper bound of target range"),
+      },
+      {
+        row: thresholdBgHighRow,
+        key: "threshold-bg-high",
+        base: _("Value considered too high"),
+      },
+    ];
+    this._updateThresholdSubtitles(window._settings);
+
     // Enable/disable threshold fields based on override switch
     const updateThresholdSensitivity = () => {
       const overrideEnabled = thresholdOverrideRow.active;
-      thresholdBgHighRow.set_sensitive(overrideEnabled);
-      thresholdBgTargetTopRow.set_sensitive(overrideEnabled);
-      thresholdBgTargetBottomRow.set_sensitive(overrideEnabled);
       thresholdBgLowRow.set_sensitive(overrideEnabled);
+      thresholdBgTargetBottomRow.set_sensitive(overrideEnabled);
+      thresholdBgTargetTopRow.set_sensitive(overrideEnabled);
+      thresholdBgHighRow.set_sensitive(overrideEnabled);
     };
 
     // Connect to switch state changes
@@ -543,7 +572,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     });
     headerGroup.add(copyDebugButtonRow);
     copyDebugButtonRow.connect("activated", () => {
-      this._copyAllDebugInfo(window._settings, window._debugElements);
+      this._copyAllDebugInfo(window._settings, _debugElements);
     });
 
     // Server configuration group
@@ -663,7 +692,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     );
 
     // Store debug elements for updating
-    window._debugElements = {
+    _debugElements = {
       serverConfigGroup,
       localSettingsGroup,
       computedValuesGroup,
@@ -684,16 +713,16 @@ export default class NightscoutPreferences extends ExtensionPreferences {
 
     // Connect refresh button
     refreshDebugButton.connect("clicked", () => {
-      this._refreshDebugInfo(window._settings, window._debugElements);
+      this._refreshDebugInfo(window._settings, _debugElements);
     });
 
     // Connect to settings changes for real-time debug updates
     window._settingsHandler = window._settings.connect("changed", () => {
-      this._updateDebugInfo(window._settings, window._debugElements);
+      this._updateDebugInfo(window._settings, _debugElements);
     });
 
     // Initial debug info load
-    this._fetchServerConfigForDebug(window._settings, window._debugElements);
+    this._fetchServerConfigForDebug(window._settings, _debugElements);
     this._displayLocalSettings(window._settings, localSettingsGroup);
   }
 
@@ -772,9 +801,15 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     // Update local settings display
     this._updateLocalSettings(settings, localSettingsGroup);
 
+    this._updateThresholdSubtitles(settings);
+
     // Update computed values if server data is available
     if (window._lastServerData) {
-      this._updateComputedValues(window._lastServerData, settings);
+      this._displayComputedValues(
+        window._lastServerData,
+        settings,
+        debugElements,
+      );
     }
   }
 
@@ -796,6 +831,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
 
       this._displayServerConfig(response, debugElements);
       this._displayComputedValues(response, settings, debugElements);
+      this._updateThresholdSubtitles(settings);
     } catch (error) {
       console.log(error);
 
@@ -846,15 +882,14 @@ export default class NightscoutPreferences extends ExtensionPreferences {
 
       const serverUnits = ["mmol", "mmol/L"].includes(settings.units)
         ? "mmol/L"
-        : "mg/dl";
+        : "mg/dL";
 
       // Update units
       elements.serverUnitsRow.set_subtitle(
         settings.units ? serverUnits : _("Not available"),
       );
 
-      // Update thresholds (Nightscout returns them in mg/dL; display in
-      // the server's configured unit)
+      // Update thresholds
       if (settings.thresholds) {
         const thresholds = settings.thresholds;
         const fmt = (raw) =>
@@ -1181,7 +1216,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       const serverSettings = window._lastServerData.settings;
       const serverUnits = ["mmol", "mmol/L"].includes(serverSettings.units)
         ? "mmol/L"
-        : "mg/dl";
+        : "mg/dL";
       const effectiveUnits =
         unitsSelection === "auto" ? serverUnits : unitsSelection;
 
@@ -1193,8 +1228,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
 
       if (serverSettings.thresholds) {
         const thresholds = serverSettings.thresholds;
-        // Server thresholds are always mg/dL; computed values use the
-        // effective (local) unit.
         const toEffective = (raw) =>
           raw !== undefined ? this._convertFromMgDl(raw, effectiveUnits) : null;
 
@@ -1247,7 +1280,7 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     const serverSettings = serverData.settings || {};
     const serverUnits = ["mmol", "mmol/L"].includes(serverSettings.units)
       ? "mmol/L"
-      : "mg/dl";
+      : "mg/dL";
     const unitsSelection = settings.get_string("units-selection");
     const effectiveUnits =
       unitsSelection === "auto" ? serverUnits : unitsSelection;
@@ -1261,31 +1294,24 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     // Update computed thresholds
     if (thresholdOverrideEnabled) {
       // Use user's custom threshold values
-      const localHigh = settings.get_int("threshold-bg-high");
-      const localTargetTop = settings.get_int("threshold-bg-target-top");
-      const localTargetBottom = settings.get_int("threshold-bg-target-bottom");
       const localLow = settings.get_int("threshold-bg-low");
+      const localTargetBottom = settings.get_int("threshold-bg-target-bottom");
+      const localTargetTop = settings.get_int("threshold-bg-target-top");
+      const localHigh = settings.get_int("threshold-bg-high");
 
-      elements.computedLowRow.set_subtitle(
-        `${localLow} ${effectiveUnits} (from your settings)`,
-      );
-      elements.computedTargetBottomRow.set_subtitle(
-        `${localTargetBottom} ${effectiveUnits} (from your settings)`,
-      );
-      elements.computedTargetTopRow.set_subtitle(
-        `${localTargetTop} ${effectiveUnits} (from your settings)`,
-      );
-      elements.computedHighRow.set_subtitle(
-        `${localHigh} ${effectiveUnits} (from your settings)`,
-      );
+      const fmt = (local) =>
+        `${this._convertFromMgDl(local, effectiveUnits)} ${effectiveUnits} (overridden)`;
+
+      elements.computedLowRow.set_subtitle(fmt(localLow));
+      elements.computedTargetBottomRow.set_subtitle(fmt(localTargetBottom));
+      elements.computedTargetTopRow.set_subtitle(fmt(localTargetTop));
+      elements.computedHighRow.set_subtitle(fmt(localHigh));
     } else if (serverSettings.thresholds) {
-      // Server thresholds are always mg/dL. Show the computed value in the
-      // effective (local) unit and the server value in the server unit.
+      // Calculate from server data
       const thresholds = serverSettings.thresholds;
       const fmt = (raw) =>
         raw !== undefined
-          ? `${this._convertFromMgDl(raw, effectiveUnits)} ${effectiveUnits} ` +
-            `(server: ${this._convertFromMgDl(raw, serverUnits)} ${serverUnits})`
+          ? `${this._convertFromMgDl(raw, effectiveUnits)} ${effectiveUnits} (from server)`
           : _("Not available");
 
       elements.computedLowRow.set_subtitle(fmt(thresholds.bgLow));
@@ -1303,11 +1329,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     }
   }
 
-  _updateComputedValues(serverData, settings) {
-    // Update existing computed values with updated settings
-    this._displayComputedValues(serverData, settings, window._debugElements);
-  }
-
   _createRow(container, title, subtitle, isExpander = false) {
     const row = new Adw.ActionRow({ title, subtitle });
     row.add_css_class("property");
@@ -1319,13 +1340,37 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     return row;
   }
 
-  // Nightscout always returns glucose values and thresholds in mg/dL.
-  // Convert a raw mg/dL value to the given display unit (1 decimal for mmol/L).
   _convertFromMgDl(value, unit) {
     if (unit === "mmol/L") {
       return Math.round(value * 0.0555 * 10) / 10;
     }
     return value;
+  }
+
+  _updateThresholdSubtitles(settings) {
+    const rows = _thresholdRows;
+    if (!rows) return;
+
+    const unitsSelection = settings.get_string("units-selection");
+    let effectiveUnits = unitsSelection;
+    if (unitsSelection === "auto") {
+      const serverSettings =
+        (window._lastServerData && window._lastServerData.settings) || {};
+      effectiveUnits = ["mmol", "mmol/L"].includes(serverSettings.units)
+        ? "mmol/L"
+        : "mg/dL";
+    }
+
+    rows.forEach(({ row, key, base }) => {
+      if (effectiveUnits === "mmol/L") {
+        const mgdl = settings.get_int(key);
+        row.set_subtitle(
+          `${base} - ${this._convertFromMgDl(mgdl, "mmol/L")} mmol/L`,
+        );
+      } else {
+        row.set_subtitle(base);
+      }
+    });
   }
 
   _is24HourFormat() {
