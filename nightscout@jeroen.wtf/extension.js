@@ -49,18 +49,18 @@ let NOTIFICATION_STALE_DATA = true;
 let NOTIFICATION_RAPIDLY_CHANGES = true;
 let NOTIFICATION_URGENCY_LEVEL = 2;
 let UNITS_SELECTION = "auto";
-let UNITS = "mg/dl";
+let UNITS = "mg/dL";
 let THRESHOLD_OVERRIDE_ENABLED = false;
-let THRESHOLD_BG_HIGH = 260;
-let THRESHOLD_BG_TARGET_TOP = 180;
-let THRESHOLD_BG_TARGET_BOTTOM = 70;
 let THRESHOLD_BG_LOW = 55;
+let THRESHOLD_BG_TARGET_BOTTOM = 70;
+let THRESHOLD_BG_TARGET_TOP = 180;
+let THRESHOLD_BG_HIGH = 260;
 
-let SERVER_UNITS = "mg/dl";
-let SERVER_THRESHOLD_BG_HIGH = 260;
-let SERVER_THRESHOLD_BG_TARGET_TOP = 180;
-let SERVER_THRESHOLD_BG_TARGET_BOTTOM = 70;
+let SERVER_UNITS = "mg/dL";
 let SERVER_THRESHOLD_BG_LOW = 55;
+let SERVER_THRESHOLD_BG_TARGET_BOTTOM = 70;
+let SERVER_THRESHOLD_BG_TARGET_TOP = 180;
+let SERVER_THRESHOLD_BG_HIGH = 260;
 
 const Indicator = GObject.registerClass(
   class Indicator extends PanelMenu.Button {
@@ -395,34 +395,32 @@ const Indicator = GObject.registerClass(
         {
           auto: SERVER_UNITS,
           "mmol/L": "mmol/L",
-        }[UNITS_SELECTION] || "mg/dl";
+        }[UNITS_SELECTION] || "mg/dL";
 
       if (THRESHOLD_OVERRIDE_ENABLED) {
-        // Use local threshold values from settings
-        // Note: User enters values in their preferred display units,
-        // so no conversion needed - store as numbers
         const { settings } = this.extension;
-        const localHigh = settings.get_int("threshold-bg-high");
-        const localTargetTop = settings.get_int("threshold-bg-target-top");
-        const localTargetBottom = settings.get_int(
-          "threshold-bg-target-bottom",
-        );
-        const localLow = settings.get_int("threshold-bg-low");
 
-        THRESHOLD_BG_HIGH = localHigh;
-        THRESHOLD_BG_TARGET_TOP = localTargetTop;
-        THRESHOLD_BG_TARGET_BOTTOM = localTargetBottom;
-        THRESHOLD_BG_LOW = localLow;
-      } else {
-        // Use server threshold values
-        THRESHOLD_BG_HIGH = this._convertBgValue(SERVER_THRESHOLD_BG_HIGH);
-        THRESHOLD_BG_TARGET_TOP = this._convertBgValue(
-          SERVER_THRESHOLD_BG_TARGET_TOP,
+        THRESHOLD_BG_LOW = this._convertBgValue(
+          settings.get_int("threshold-bg-low"),
         );
+        THRESHOLD_BG_TARGET_BOTTOM = this._convertBgValue(
+          settings.get_int("threshold-bg-target-bottom"),
+        );
+        THRESHOLD_BG_TARGET_TOP = this._convertBgValue(
+          settings.get_int("threshold-bg-target-top"),
+        );
+        THRESHOLD_BG_HIGH = this._convertBgValue(
+          settings.get_int("threshold-bg-high"),
+        );
+      } else {
+        THRESHOLD_BG_LOW = this._convertBgValue(SERVER_THRESHOLD_BG_LOW);
         THRESHOLD_BG_TARGET_BOTTOM = this._convertBgValue(
           SERVER_THRESHOLD_BG_TARGET_BOTTOM,
         );
-        THRESHOLD_BG_LOW = this._convertBgValue(SERVER_THRESHOLD_BG_LOW);
+        THRESHOLD_BG_TARGET_TOP = this._convertBgValue(
+          SERVER_THRESHOLD_BG_TARGET_TOP,
+        );
+        THRESHOLD_BG_HIGH = this._convertBgValue(SERVER_THRESHOLD_BG_HIGH);
       }
     }
 
@@ -436,7 +434,7 @@ const Indicator = GObject.registerClass(
 
         const { units, thresholds } = data.settings;
 
-        SERVER_UNITS = ["mmol", "mmol/L"].includes(units) ? "mmol/L" : "mg/dl";
+        SERVER_UNITS = ["mmol", "mmol/L"].includes(units) ? "mmol/L" : "mg/dL";
         SERVER_THRESHOLD_BG_HIGH = thresholds.bgHigh;
         SERVER_THRESHOLD_BG_TARGET_TOP = thresholds.bgTargetTop;
         SERVER_THRESHOLD_BG_TARGET_BOTTOM = thresholds.bgTargetBottom;
@@ -576,9 +574,12 @@ const Indicator = GObject.registerClass(
           return MessageTray.Urgency.LOW;
 
         case 1:
+          return MessageTray.Urgency.NORMAL;
+
+        case 2:
           return MessageTray.Urgency.HIGH;
 
-        case 1:
+        case 3:
           return MessageTray.Urgency.CRITICAL;
 
         default:
@@ -818,21 +819,12 @@ const Indicator = GObject.registerClass(
       }
     }
 
+    // sgv (entries.json) and thresholds (status) are always returned in
+    // mg/dL; convert to the chosen display unit.
     _convertBgValue(value) {
-      if (UNITS === SERVER_UNITS) {
-        return UNITS === "mmol/L" ? Number(value) : value;
+      if (UNITS === "mmol/L") {
+        return Number((value * 0.0555).toFixed(1));
       }
-
-      if (UNITS === "mmol/L" && SERVER_UNITS === "mg/dl") {
-        const convertedValue = value * 0.0555;
-        return Number(convertedValue);
-      }
-
-      if (UNITS === "mg/dl" && SERVER_UNITS === "mmol/L") {
-        const convertedValue = value / 0.0555;
-        return Math.round(convertedValue);
-      }
-
       return value;
     }
 

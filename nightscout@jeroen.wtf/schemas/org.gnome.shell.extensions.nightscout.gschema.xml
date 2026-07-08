@@ -88,7 +88,7 @@
     <key name="units-selection" type="s">
       <default>'auto'</default>
       <summary>Units selection</summary>
-      <description>Units to display glucose values in. 'auto' uses server settings, 'mg/dl' or 'mmol/L' for manual selection</description>
+      <description>Units to display glucose values in. 'auto' uses server settings, 'mg/dL' or 'mmol/L' for manual selection</description>
     </key>
 
     <!-- Threshold overrides -->
