@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.8.1] - 2026-07-08
+### Fixed
+- mmol/L values were shown as raw mg/dL (e.g. `72` instead of `4.0`)
+- Notification urgency dropdown had no effect for "Normal" and "Critical". The four options now map correctly to Low/Normal/High/Critical.
+- Override thresholds no longer false-flag every reading as "very low" on servers configured in mmol/L.
+- Diagnostics tab now displays server and computed thresholds in the correct units.
+
+### Added
+- Override threshold fields show a live mmol/L equivalent when the display unit is mmol/L (values still entered in mg/dL).
+- `unlink.sh` script to opt-out from the developer version.
+
+### Changed
+- Consistent `mg/dL` casing (was `mg/dl`) across the extension.
+
 ## [1.8.0] - 2026-05-03
 ### Added
 - Option for overridding the thresholds from the server.
