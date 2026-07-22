@@ -20,7 +20,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
 
     this._extensionMetadata = metadata;
 
-    // Global settings schema for debug display
     this._settingsSchema = [
       {
         key: "nightscout-url",
@@ -272,7 +271,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       Gio.SettingsBindFlags.DEFAULT,
     );
 
-    // Glucose values page
     const glucoseValuesPage = new Adw.PreferencesPage({
       title: _("Glucose values"),
       icon_name: "weather-showers-scattered-symbolic",
@@ -311,7 +309,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       }
     });
 
-    // Threshold overrides section
     const thresholdsGroup = new Adw.PreferencesGroup({
       title: _("Threshold ranges"),
       description: _(
@@ -335,7 +332,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       Gio.SettingsBindFlags.DEFAULT,
     );
 
-    // Threshold value rows (visible but sensitivity controlled by toggle)
     const thresholdBgLowRow = new Adw.SpinRow({
       title: _("Low threshold"),
       subtitle: _("Value considered too low"),
@@ -432,7 +428,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     ];
     this._updateThresholdSubtitles(window._settings);
 
-    // Enable/disable threshold fields based on override switch
     const updateThresholdSensitivity = () => {
       const overrideEnabled = thresholdOverrideRow.active;
       thresholdBgLowRow.set_sensitive(overrideEnabled);
@@ -441,10 +436,8 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       thresholdBgHighRow.set_sensitive(overrideEnabled);
     };
 
-    // Connect to switch state changes
     thresholdOverrideRow.connect("notify::active", updateThresholdSensitivity);
 
-    // Set initial state
     updateThresholdSensitivity();
 
     const notificationsGroup = new Adw.PreferencesGroup({
@@ -532,7 +525,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       Gio.SettingsBindFlags.DEFAULT,
     );
 
-    // Debug page
     const debugPage = new Adw.PreferencesPage({
       title: _("Diagnostics"),
       icon_name: "org.gnome.Settings-device-diagnostics-symbolic",
@@ -552,7 +544,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       this._extensionMetadata.version ||
       "Unknown";
 
-    // Extension version row
     const versionRow = new Adw.ActionRow({
       title: `${_("Extension Version")}: ${extensionVersion}`,
     });
@@ -565,7 +556,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     });
     versionRow.add_suffix(githubIssuesButton);
 
-    // Copy debug info ButtonRow
     const copyDebugButtonRow = new Adw.ButtonRow({
       title: _("Copy debug info"),
       start_icon_name: "edit-copy-symbolic",
@@ -575,42 +565,36 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       this._copyAllDebugInfo(window._settings, _debugElements);
     });
 
-    // Server configuration group
     const serverConfigGroup = new Adw.PreferencesGroup({
       title: _("Server Configuration"),
       description: _("Configuration obtained from your Nightscout server"),
     });
     debugPage.add(serverConfigGroup);
 
-    // Server status row
     const serverStatusRow = new Adw.ActionRow({
       title: _("Server Status"),
       subtitle: _("Click 'Fetch server config' to connect"),
     });
     serverConfigGroup.add(serverStatusRow);
 
-    // Add refresh button to server status row
     const refreshDebugButton = new Gtk.Button({
       label: _("Fetch server config"),
       valign: Gtk.Align.CENTER,
     });
     serverStatusRow.add_suffix(refreshDebugButton);
 
-    // Server version row
     const serverVersionRow = this._createRow(
       serverConfigGroup,
       _("Server Version"),
       _("Not fetched"),
     );
 
-    // Server units row
     const serverUnitsRow = this._createRow(
       serverConfigGroup,
       _("Server Units"),
       _("Not fetched"),
     );
 
-    // Server thresholds expander
     const serverThresholdsExpander = new Adw.ExpanderRow({
       title: _("Server Thresholds"),
       subtitle: _("Blood glucose target ranges from server"),
@@ -645,28 +629,24 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       true,
     );
 
-    // Local settings group
     const localSettingsGroup = new Adw.PreferencesGroup({
       title: _("Local Extension Settings"),
       description: _("The settings in this GNOME extension."),
     });
     debugPage.add(localSettingsGroup);
 
-    // Computed values group
     const computedValuesGroup = new Adw.PreferencesGroup({
       title: _("Computed Values"),
       description: _("The values after applying all the configuration."),
     });
     debugPage.add(computedValuesGroup);
 
-    // Effective units row
     const effectiveUnitsRow = this._createRow(
       computedValuesGroup,
       _("Effective Units"),
       _("Not fetched"),
     );
 
-    // Computed threshold rows
     const computedLowRow = this._createRow(
       computedValuesGroup,
       _("Computed Low"),
@@ -691,7 +671,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       _("Not fetched"),
     );
 
-    // Store debug elements for updating
     _debugElements = {
       serverConfigGroup,
       localSettingsGroup,
@@ -711,19 +690,36 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       computedHighRow,
     };
 
-    // Connect refresh button
     refreshDebugButton.connect("clicked", () => {
       this._refreshDebugInfo(window._settings, _debugElements);
     });
 
-    // Connect to settings changes for real-time debug updates
     window._settingsHandler = window._settings.connect("changed", () => {
       this._updateDebugInfo(window._settings, _debugElements);
     });
 
-    // Initial debug info load
     this._fetchServerConfigForDebug(window._settings, _debugElements);
     this._displayLocalSettings(window._settings, localSettingsGroup);
+
+    window.connect("close-request", () => {
+      if (window._settingsHandler) {
+        window._settings.disconnect(window._settingsHandler);
+      }
+
+      if (window._debugHandlers) {
+        Object.values(window._debugHandlers).forEach((handler) => {
+          window._settings.disconnect(handler);
+        });
+      }
+
+      _debugElements = null;
+      _thresholdRows = null;
+
+      window._lastServerData = null;
+      window._debugSettingsGroup = null;
+      window._settingsHandler = null;
+      window._debugHandlers = null;
+    });
   }
 
   async _fetchServerStatus(settings) {
@@ -786,11 +782,9 @@ export default class NightscoutPreferences extends ExtensionPreferences {
   _refreshDebugInfo(settings, debugElements) {
     const { serverStatusRow, localSettingsGroup } = debugElements;
 
-    // Update server status to show loading
     serverStatusRow.set_title(_("Updating..."));
     serverStatusRow.set_subtitle(_("Fetching server configuration..."));
 
-    // Fetch server configuration and local settings
     this._fetchServerConfigForDebug(settings, debugElements);
     this._updateLocalSettings(settings, localSettingsGroup);
   }
@@ -798,12 +792,10 @@ export default class NightscoutPreferences extends ExtensionPreferences {
   _updateDebugInfo(settings, debugElements) {
     const { localSettingsGroup } = debugElements;
 
-    // Update local settings display
     this._updateLocalSettings(settings, localSettingsGroup);
 
     this._updateThresholdSubtitles(settings);
 
-    // Update computed values if server data is available
     if (window._lastServerData) {
       this._displayComputedValues(
         window._lastServerData,
@@ -814,10 +806,8 @@ export default class NightscoutPreferences extends ExtensionPreferences {
   }
 
   async _fetchServerConfigForDebug(settings, debugElements) {
-    // Store reference to debug elements for copying
     window._lastServerData = null;
 
-    // Update server status to show loading
     debugElements.serverStatusRow.set_title(_("Fetching..."));
     debugElements.serverStatusRow.set_subtitle(
       _("Connecting to Nightscout server..."),
@@ -826,7 +816,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     try {
       const response = await this._fetchServerStatus(settings);
 
-      // Store server data for copying
       window._lastServerData = response;
 
       this._displayServerConfig(response, debugElements);
@@ -835,11 +824,9 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     } catch (error) {
       console.log(error);
 
-      // Update server status to show error
       debugElements.serverStatusRow.set_title(_("Error"));
       debugElements.serverStatusRow.set_subtitle(error.toString());
 
-      // Reset other values to show error state
       debugElements.serverVersionRow.set_subtitle(_("Error"));
       debugElements.serverUnitsRow.set_subtitle(_("Error"));
       debugElements.serverBgLowRow.set_subtitle(_("Error"));
@@ -847,7 +834,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       debugElements.serverBgTargetTopRow.set_subtitle(_("Error"));
       debugElements.serverBgHighRow.set_subtitle(_("Error"));
 
-      // Reset computed values
       debugElements.effectiveUnitsRow.set_subtitle(_("Error"));
       debugElements.computedLowRow.set_subtitle(_("Error"));
       debugElements.computedTargetBottomRow.set_subtitle(_("Error"));
@@ -863,20 +849,17 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       hour12: this._is24HourFormat() === false,
     });
 
-    // Update server status
     elements.serverStatusRow.set_title(_("Connected"));
     elements.serverStatusRow.set_subtitle(
       _(`Fetched server configuration at ${currentTime}.`),
     );
 
-    // Update server version
     if (serverData.version) {
       elements.serverVersionRow.set_subtitle(serverData.version);
     } else {
       elements.serverVersionRow.set_subtitle(_("Not available"));
     }
 
-    // Update server settings
     if (serverData.settings) {
       const settings = serverData.settings;
 
@@ -884,12 +867,10 @@ export default class NightscoutPreferences extends ExtensionPreferences {
         ? "mmol/L"
         : "mg/dL";
 
-      // Update units
       elements.serverUnitsRow.set_subtitle(
         settings.units ? serverUnits : _("Not available"),
       );
 
-      // Update thresholds
       if (settings.thresholds) {
         const thresholds = settings.thresholds;
         const fmt = (raw) =>
@@ -919,10 +900,8 @@ export default class NightscoutPreferences extends ExtensionPreferences {
   }
 
   _displayLocalSettings(settings, group) {
-    // Store group reference for updates
     window._debugSettingsGroup = group;
 
-    // Separate settings into categories
     const basicSettings = [];
     const showSettings = [];
     const notificationSettings = [];
@@ -940,7 +919,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       }
     });
 
-    // Create rows for basic settings
     basicSettings.forEach((setting) => {
       let value;
       if (setting.type === "int") {
@@ -958,7 +936,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
 
       const row = this._createRow(group, title, setting.format(value));
 
-      // Connect to changes
       const handler = settings.connect(`changed::${setting.key}`, () => {
         let newValue;
         if (setting.type === "int") {
@@ -975,7 +952,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       window._debugHandlers[setting.key] = handler;
     });
 
-    // Create expander for "show..." settings
     if (showSettings.length > 0) {
       const showExpander = new Adw.ExpanderRow({
         title: _("Display Options"),
@@ -1008,7 +984,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       });
     }
 
-    // Create expander for threshold settings
     if (thresholdSettings.length > 0) {
       const thresholdExpander = new Adw.ExpanderRow({
         title: _("Threshold Overrides"),
@@ -1053,7 +1028,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       });
     }
 
-    // Create expander for notification settings
     if (notificationSettings.length > 0) {
       const notificationExpander = new Adw.ExpanderRow({
         title: _("Notifications"),
@@ -1098,7 +1072,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
   }
 
   _updateLocalSettings(settings, group) {
-    // Find and update existing rows
     let child = group.get_first_child();
 
     while (child) {
@@ -1107,14 +1080,12 @@ export default class NightscoutPreferences extends ExtensionPreferences {
         child.subtitle &&
         child.get_css_classes().includes("property")
       ) {
-        // Try to find a matching setting in the schema
         const matchingSetting = this._settingsSchema.find((setting) => {
           const title = setting.key
             .split("-")
             .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
             .join(" ");
 
-          // Handle special cases for grouped settings
           if (setting.key.startsWith("show-")) {
             const cleanTitle = setting.key
               .replace("show-", "")
@@ -1185,7 +1156,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
     );
     const notifUrgency = settings.get_int("notification-urgency-level");
 
-    // Get relevant server data that's displayed in the debug tab
     let serverConfig = {
       version: null,
       units: null,
@@ -1210,7 +1180,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       }
     }
 
-    // Get computed values if server data is available
     let computedValues = {};
     if (window._lastServerData && window._lastServerData.settings) {
       const serverSettings = window._lastServerData.settings;
@@ -1288,12 +1257,9 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       "threshold-override-enabled",
     );
 
-    // Update effective units
     elements.effectiveUnitsRow.set_subtitle(effectiveUnits);
 
-    // Update computed thresholds
     if (thresholdOverrideEnabled) {
-      // Use user's custom threshold values
       const localLow = settings.get_int("threshold-bg-low");
       const localTargetBottom = settings.get_int("threshold-bg-target-bottom");
       const localTargetTop = settings.get_int("threshold-bg-target-top");
@@ -1307,7 +1273,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       elements.computedTargetTopRow.set_subtitle(fmt(localTargetTop));
       elements.computedHighRow.set_subtitle(fmt(localHigh));
     } else if (serverSettings.thresholds) {
-      // Calculate from server data
       const thresholds = serverSettings.thresholds;
       const fmt = (raw) =>
         raw !== undefined
@@ -1321,7 +1286,6 @@ export default class NightscoutPreferences extends ExtensionPreferences {
       elements.computedTargetTopRow.set_subtitle(fmt(thresholds.bgTargetTop));
       elements.computedHighRow.set_subtitle(fmt(thresholds.bgHigh));
     } else {
-      // No thresholds available
       elements.computedLowRow.set_subtitle(_("Not available"));
       elements.computedTargetBottomRow.set_subtitle(_("Not available"));
       elements.computedTargetTopRow.set_subtitle(_("Not available"));
