@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.8.2] - 2026-10-14
+### Added
+- Support for GNOME 51.
+
 ## [1.8.1] - 2026-07-08
 ### Fixed
 - mmol/L values were shown as raw mg/dL (e.g. `72` instead of `4.0`)
